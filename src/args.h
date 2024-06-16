@@ -10,15 +10,16 @@ struct users {
     char *pass;
 };
 
-struct doh {
-    char           *host;
-    char           *ip;
-    unsigned short  port;
-    char           *path;
-    char           *query;
-};
+/*
+ * Vamos a popular esta struct desde la linea de comandos.
+ * - Lista de hosts de dominios que aceptamos.
+ * - Directorio raiz donde vamos a guardar los correos.
+ * - Puerto default del protocolo SMTP y del protocolo de management.
+ * - SockAddr para definir si bindeamos a localhost o no.
+ */
+struct smtpargs {
+    char *          mail_directory;
 
-struct socks5args {
     char           *socks_addr;
     unsigned short  socks_port;
 
@@ -37,7 +38,7 @@ struct socks5args {
  * la ejecución.
  */
 void 
-parse_args(const int argc, char **argv, struct socks5args *args);
+parse_args(const int argc, char **argv, struct smtpargs *args);
 
 #endif
 

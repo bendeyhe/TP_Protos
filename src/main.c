@@ -16,12 +16,15 @@
 #include <limits.h>
 #include <errno.h>
 #include <signal.h>
+#include <stdbool.h>
 
 #include <unistd.h>
 #include <sys/types.h>   // socket
 #include <sys/socket.h>  // socket
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+
+#include "args.h"
 
 #include "socks5.h"
 #include "selector.h"
@@ -37,25 +40,9 @@ sigterm_handler(const int signal) {
 
 int
 main(const int argc, const char **argv) {
-    unsigned port = 1080;
+    struct smtpargs args;
 
-    if(argc == 1) {
-        // utilizamos el default
-    } else if(argc == 2) {
-        char *end     = 0;
-        const long sl = strtol(argv[1], &end, 10);
-
-        if (end == argv[1]|| '\0' != *end 
-           || ((LONG_MIN == sl || LONG_MAX == sl) && ERANGE == errno)
-           || sl < 0 || sl > USHRT_MAX) {
-            fprintf(stderr, "port should be an integer: %s\n", argv[1]);
-            return 1;
-        }
-        port = sl;
-    } else {
-        fprintf(stderr, "Usage: %s <port>\n", argv[0]);
-        return 1;
-    }
+    parse_args(argc, argv, &args);
 
     // no tenemos nada que leer de stdin
     close(0);
@@ -93,7 +80,7 @@ main(const int argc, const char **argv) {
 
     // registrar sigterm es útil para terminar el programa normalmente.
     // esto ayuda mucho en herramientas como valgrind.
-    signal(SIGTERM, sigterm_handler);
+    signal(SIGTERM, sigterm_handler); // Para CTRL+D y CTRL+C
     signal(SIGINT,  sigterm_handler);
 
     if(selector_fd_set_nio(server) == -1) {
@@ -122,8 +109,7 @@ main(const int argc, const char **argv) {
         .handle_write      = NULL,
         .handle_close      = NULL, // nada que liberar
     };
-    ss = selector_register(selector, server, &socksv5,
-                                              OP_READ, NULL);
+    ss = selector_register(selector, server, &socksv5, OP_READ, NULL);
     if(ss != SELECTOR_SUCCESS) {
         err_msg = "registering fd";
         goto finally;
