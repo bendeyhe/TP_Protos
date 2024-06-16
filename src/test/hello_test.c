@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <check.h>
 
-#include "hello.h"
+#include "../lib/headers/hello.h"
 #include "tests.h"
 
 #define FIXBUF(b, data) buffer_init(&(b), N(data), (data)); \

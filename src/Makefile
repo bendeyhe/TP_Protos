@@ -17,7 +17,7 @@ SMTPD_OBJS:= args.o main.o
 
 all: $(SMTPD_CLI)
 
-args.o : args.h
+args.o : lib/headers/args.h
 
 $(SMTPD_CLI): $(SMTPD_OBJS)
 	$(CC) $(CFLAGS) $(SMTPD_OBJS) -o $(SMTPD_CLI)

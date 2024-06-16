@@ -3,7 +3,7 @@
  *         del selector.c
  */
 #include <stdlib.h>
-#include "stm.h"
+#include "headers/stm.h"
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
 

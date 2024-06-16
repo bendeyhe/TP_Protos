@@ -12,13 +12,13 @@
 
 #include <arpa/inet.h>
 
-#include "hello.h"
-#include "request.h"
-#include "buffer.h"
+#include "lib/headers/hello.h"
+#include "lib/headers/request.h"
+#include "lib/headers/buffer.h"
 
-#include "stm.h"
+#include "lib/headers/stm.h"
 #include "socks5nio.h"
-#include"netutils.h"
+#include"lib/headers/netutils.h"
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
 

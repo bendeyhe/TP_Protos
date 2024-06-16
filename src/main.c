@@ -24,10 +24,10 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>
 
-#include "args.h"
+#include "lib/headers/args.h"
 
 #include "socks5.h"
-#include "selector.h"
+#include "lib/headers/selector.h"
 #include "socks5nio.h"
 
 static bool done = false;
