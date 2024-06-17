@@ -51,6 +51,8 @@ selector_error(const selector_status status) {
 static void
 wake_handler(const int signal) {
     // nada que hacer. está solo para interrumpir el select
+    int a = signal; //TODO BORRAR ESTO
+    printf("%d", a); //TODO BORRAR ESTO
 }
 
 // señal a usar para las notificaciones de resolución
@@ -565,7 +567,6 @@ selector_select(fd_selector s) {
             default:
                 ret = SELECTOR_IO;
                 goto finally;
-
         }
     } else {
         handle_iteration(s);

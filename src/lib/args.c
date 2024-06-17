@@ -39,8 +39,9 @@ user(char *s, struct users *user) {
 
 static void
 version(void) {
-    fprintf(stderr, "socks5v version 0.0\n"
-                    "ITBA Protocolos de Comunicación 2020/1 -- Grupo X\n"
+    fprintf(stderr, "smtp version 0.0\n"
+                    "ITBA Protocolos de Comunicación 2024/1 -- Grupo 11\n"
+                    "Deyheralde, Ben - Mutz, Matías - Ves Losada, Tobías"
                     "AQUI VA LA LICENCIA\n");
 }
 
@@ -66,7 +67,7 @@ parse_args(const int argc, char **argv, struct smtpargs *args) {
     memset(args, 0, sizeof(*args)); // sobre todo para setear en null los punteros de users
 
     args->socks_addr = "0.0.0.0";
-    args->socks_port = 1080;
+    args->socks_port = 2525;
 
     args->mng_addr   = "127.0.0.1";
     args->mng_port   = 8080;

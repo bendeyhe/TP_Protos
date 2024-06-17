@@ -28,7 +28,6 @@ struct smtpargs {
 
     bool            disectors_enabled;
 
-    struct doh      doh;
     struct users    users[MAX_USERS];
 };
 
