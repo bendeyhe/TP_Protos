@@ -87,7 +87,7 @@ static unsigned request_read(struct selector_key *key) {
 
             // TODO: CHEQUEAR count CON n (min(n,count))
             memcpy(ptr, "200\r\n", 5);
-            buffer_write_adv(&state->write_buffer, n);
+            buffer_write_adv(&state->write_buffer, 5);
         } else {
             ret = ERROR;
         }
@@ -113,7 +113,7 @@ static unsigned response_write(struct selector_key *key) {
     buffer *b = &ATTACHMENT(key)->write_buffer;
 
     uint8_t *ptr = buffer_read_ptr(b, &count);
-    ssize_t n = send(key->fd, "Hola\n", 5, MSG_NOSIGNAL);
+    ssize_t n = send(key->fd, ptr, count, MSG_NOSIGNAL);
 
     if (n >= 0) {
         buffer_read_adv(b, n);
@@ -146,10 +146,10 @@ static const struct state_definition client_statbl[] = {
                 .on_read_ready    = request_read,
         },
         {
-                .state            = ERROR,
+                .state            = DONE,
         },
         {
-                .state            = DONE,
+                .state            = ERROR,
         },
 };
 
@@ -253,10 +253,10 @@ void smtp_passive_accept(struct selector_key *key) {
     buffer_init(&state->read_buffer, N(state->raw_buff_read), state->raw_buff_read);
     buffer_init(&state->write_buffer, N(state->raw_buff_write), state->raw_buff_write);
 
-    memcpy(&state->raw_buff_write, "Hola\n", 5);
-    buffer_write_adv(&state->write_buffer, 5);
+    memcpy(&state->raw_buff_write, "Hello! Identify yourself\n", 26);
+    buffer_write_adv(&state->write_buffer, 26);
 
-    if (SELECTOR_SUCCESS != selector_register(key->s, client, &smtp_handler, OP_READ, state)) {
+    if (SELECTOR_SUCCESS != selector_register(key->s, client, &smtp_handler, OP_WRITE, state)) {
         goto fail;
     }
     return;
