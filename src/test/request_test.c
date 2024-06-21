@@ -15,19 +15,24 @@ START_TEST (test_request_unsuppored_version) {
     };
     request_parser_init(&parser);
     uint8_t data[] = {
-        0x04,
+        'd',
+        'a',
+        't',
+        'a',
+        '\r',
+        '\n'
     };
     buffer b; FIXBUF(b, data);
     bool errored = false;
     enum request_state st = request_consume(&b, &parser, &errored);
     
-    ck_assert_uint_eq(true, errored);
-    ck_assert_uint_eq(request_error_unsupported_version,     st);
+    ck_assert_uint_eq(false, errored);
+    ck_assert_uint_eq(request_done,     st);
 
 }
 END_TEST
 
-
+/*
 START_TEST (test_request_connect_domain) {
     struct request request;
     struct request_parser parser = {
@@ -35,14 +40,14 @@ START_TEST (test_request_connect_domain) {
     };
     request_parser_init(&parser);
     uint8_t data[] = {
-        0x05, 0x01, 0x00, 0x03, 0x0f, 0x77, 0x77, 0x77, 
-        0x2e, 0x69, 0x74, 0x62, 0x61, 0x2e, 0x65, 0x64, 
-        0x75, 0x2e, 0x61, 0x72, 0x00, 0x50, 
+        0x05, 0x01, 0x00, 0x03, 0x0f, 0x77, 0x77, 0x77,
+        0x2e, 0x69, 0x74, 0x62, 0x61, 0x2e, 0x65, 0x64,
+        0x75, 0x2e, 0x61, 0x72, 0x00, 0x50,
     };
     buffer b; FIXBUF(b, data);
     bool errored = false;
     request_consume(&b, &parser, &errored);
-    
+
     ck_assert_uint_eq(false, errored);
     ck_assert_uint_eq(socks_req_cmd_connect,     request.cmd);
     ck_assert_uint_eq(socks_req_addrtype_domain, request.dest_addr_type);
@@ -67,7 +72,7 @@ START_TEST (test_request_connect_ipv4) {
     buffer b; FIXBUF(b, data);
     bool errored = false;
     enum request_state st = request_consume(&b, &parser, &errored);
-    
+
     ck_assert_uint_eq(false, errored);
     ck_assert_uint_eq(request_done,              st);
     ck_assert_uint_eq(socks_req_cmd_connect,     request.cmd);
@@ -87,12 +92,12 @@ START_TEST (test_request_connect_ipv6) {
     uint8_t data[] = {
         0x05, 0x01, 0x00, 0x04, 0x00, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x01, 0x23, 0x82 
+        0x00, 0x00, 0x00, 0x01, 0x23, 0x82
     };
     buffer b; FIXBUF(b, data);
     bool errored = false;
     enum request_state st = request_consume(&b, &parser, &errored);
-    
+
     ck_assert_uint_eq(false, errored);
     ck_assert_uint_eq(request_done,              st);
     ck_assert_uint_eq(socks_req_cmd_connect,     request.cmd);
@@ -140,22 +145,22 @@ START_TEST (test_request_connect_multiple_messages) {
     ck_assert_uint_eq(htons(80),                 request.dest_port);
 }
 END_TEST
-
-Suite * 
+*/
+Suite *
 request_suite(void) {
     Suite *s;
     TCase *tc;
 
     s = suite_create("socks");
 
-    /* Core test case */
+    // Core test case
     tc = tcase_create("request");
 
     tcase_add_test(tc, test_request_unsuppored_version);
-    tcase_add_test(tc, test_request_connect_domain);
-    tcase_add_test(tc, test_request_connect_ipv4);
-    tcase_add_test(tc, test_request_connect_ipv6);
-    tcase_add_test(tc, test_request_connect_multiple_messages);
+    //tcase_add_test(tc, test_request_connect_domain);
+    //tcase_add_test(tc, test_request_connect_ipv4);
+    //tcase_add_test(tc, test_request_connect_ipv6);
+    //tcase_add_test(tc, test_request_connect_multiple_messages);
 
     suite_add_tcase(s, tc);
 

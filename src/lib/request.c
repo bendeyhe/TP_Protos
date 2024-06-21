@@ -11,10 +11,10 @@ remaining_set(struct request_parser* p) {
     p->i = 0;
 }
 
-static int
-remaining_is_done(struct request_parser* p) {
-    return p->i >= p->n;
-}
+//static int
+//remaining_is_done(struct request_parser* p) {
+//    return p->i >= p->n;
+//}
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -40,14 +40,14 @@ verb(const uint8_t c, struct request_parser* p) {
 
 static enum request_state
 separator_arg1(const uint8_t c, struct request_parser* p) {
-    p->request->cmd = c;
+    //p->request->cmd = c;
 
-    return request_rsv;
+    return request_separator_arg1;
 }
 
 static enum request_state
 arg1(const uint8_t c, struct request_parser* p) {
-    return request_atyp;
+    return request_arg1;
 }
 
 extern void
@@ -63,13 +63,32 @@ request_parser_feed (struct request_parser* p, const uint8_t c) {
 
     switch(p->state) {
         case request_verb:
-            next = verb(c, p);
+            switch(c) {
+                case '\r':
+                    next = request_cr;
+                    break;
+                default:
+                    next = request_verb;
+                    break;
+            }
             break;
+        /*
         case request_separator_arg1:
             next = separator_arg1(c, p);
             break;
         case request_arg1:
             next = arg1(c, p);
+            break;
+            */
+        case request_cr:
+            switch(c) {
+                case '\n':
+                    next = request_done;
+                    break;
+                default:
+                    next = request_verb;
+                    break;
+            }
             break;
         case request_done:
         case request_error:

@@ -18,14 +18,15 @@ enum request_state {
    request_verb,
    request_separator_arg1,
    request_arg1,
+   request_cr,
 
    // apartir de aca están done
    request_done,
 
    // y apartir de aca son considerado con error
    request_error,
-   /* request_error_unknown_verb,
-   request_error_unsupported_atyp,*/
+
+   //request_error_unsupported_atyp,
 };
 
 struct request_parser {
