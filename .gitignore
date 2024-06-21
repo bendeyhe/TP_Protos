@@ -14,5 +14,9 @@ cmake-build-debug/
 # Ignorar archivos con extensión .o
 *.o
 
+# Ignorar archivos con extensión .xml e .iml
+*.xml
+*.iml
+
 # Ignorar ejecutable
 src/smtpd
