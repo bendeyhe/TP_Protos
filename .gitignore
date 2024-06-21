@@ -15,4 +15,4 @@ cmake-build-debug/
 *.o
 
 # Ignorar ejecutable
-smptd
+src/smtpd
