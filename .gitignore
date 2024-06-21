@@ -1,0 +1,25 @@
+# Default ignored files
+/shelf/
+/workspace.xml
+# Editor-based HTTP Client requests
+/httpRequests/
+# Datasource local storage ignored files
+/dataSources/
+/dataSources.local.xml
+.idea/
+cmake-build-debug/
+*.o
+
+# Puedes añadir otras reglas si es necesario:
+# Ignorar archivos de registro
+*.log
+
+# Ignorar archivos temporales de sistema operativo
+*.DS_Store
+Thumbs.db
+
+# Ignorar binarios y ejecutables
+*.exe
+*.dll
+*.so
+*.out
