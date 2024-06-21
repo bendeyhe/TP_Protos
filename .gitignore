@@ -6,20 +6,13 @@
 # Datasource local storage ignored files
 /dataSources/
 /dataSources.local.xml
+
+# Ignorar carpetas .idea y cmake-build-debug
 .idea/
 cmake-build-debug/
+
+# Ignorar archivos con extensión .o
 *.o
 
-# Puedes añadir otras reglas si es necesario:
-# Ignorar archivos de registro
-*.log
-
-# Ignorar archivos temporales de sistema operativo
-*.DS_Store
-Thumbs.db
-
-# Ignorar binarios y ejecutables
-*.exe
-*.dll
-*.so
-*.out
+# Ignorar ejecutable
+smptd
