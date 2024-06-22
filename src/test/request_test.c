@@ -11,25 +11,27 @@
 START_TEST (test_request_unsuppored_version) {
     struct request request;
     struct request_parser parser = {
-        .request = &request,
+            .request = &request,
     };
     request_parser_init(&parser);
     uint8_t data[] = {
-        'd',
-        'a',
-        't',
-        'a',
-        '\r',
-        '\n'
+            'd',
+            'a',
+            't',
+            'a',
+            '\r',
+            '\n'
     };
-    buffer b; FIXBUF(b, data);
+    buffer b;
+    FIXBUF(b, data);
     bool errored = false;
     enum request_state st = request_consume(&b, &parser, &errored);
-    
+
     ck_assert_uint_eq(false, errored);
-    ck_assert_uint_eq(request_done,     st);
+    ck_assert_uint_eq(request_done, st);
 
 }
+
 END_TEST
 
 /*
@@ -167,7 +169,7 @@ request_suite(void) {
     return s;
 }
 
-int 
+int
 main(void) {
     int number_failed;
     Suite *s;

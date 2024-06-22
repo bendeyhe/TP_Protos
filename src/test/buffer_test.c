@@ -14,15 +14,15 @@ START_TEST (test_buffer_misc) {
     buffer_init(&buf, N(direct_buff), direct_buff);
     ck_assert_ptr_eq(&buf, b);
 
-    ck_assert_int_eq(true,  buffer_can_write(b));
+    ck_assert_int_eq(true, buffer_can_write(b));
     ck_assert_int_eq(false, buffer_can_read(b));
 
     size_t wbytes = 0, rbytes = 0;
     uint8_t *ptr = buffer_write_ptr(b, &wbytes);
     ck_assert_uint_eq(6, wbytes);
     // escribo 4 bytes
-    uint8_t first_write [] = {
-        'H', 'O', 'L', 'A',
+    uint8_t first_write[] = {
+            'H', 'O', 'L', 'A',
     };
     memcpy(ptr, first_write, sizeof(first_write));
     buffer_write_adv(b, sizeof(first_write));
@@ -48,8 +48,8 @@ START_TEST (test_buffer_misc) {
     ptr = buffer_write_ptr(b, &wbytes);
     ck_assert_uint_eq(2, wbytes);
 
-    uint8_t second_write [] = {
-        ' ', 'M',
+    uint8_t second_write[] = {
+            ' ', 'M',
     };
     memcpy(ptr, second_write, sizeof(second_write));
     buffer_write_adv(b, sizeof(second_write));
@@ -69,8 +69,8 @@ START_TEST (test_buffer_misc) {
     ck_assert_ptr_eq(b->data + 3, buffer_write_ptr(b, &wbytes));
     ck_assert_uint_eq(3, wbytes);
 
-    uint8_t third_write [] = {
-        'U', 'N', 'D',
+    uint8_t third_write[] = {
+            'U', 'N', 'D',
     };
     memcpy(ptr, third_write, sizeof(third_write));
     buffer_write_adv(b, sizeof(third_write));
@@ -91,12 +91,13 @@ START_TEST (test_buffer_misc) {
     ck_assert_uint_eq(N(direct_buff), wbytes);
 
 }
+
 END_TEST
 
 Suite *
 suite(void) {
-    Suite *s   = suite_create("buffer");
-    TCase *tc  = tcase_create("buffer");
+    Suite *s = suite_create("buffer");
+    TCase *tc = tcase_create("buffer");
 
     tcase_add_test(tc, test_buffer_misc);
     suite_add_tcase(s, tc);
@@ -106,7 +107,7 @@ suite(void) {
 
 int
 main(void) {
-    SRunner *sr  = srunner_create(suite());
+    SRunner *sr = srunner_create(suite());
     int number_failed;
 
     srunner_run_all(sr, CK_NORMAL);

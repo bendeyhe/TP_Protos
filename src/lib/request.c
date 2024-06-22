@@ -7,7 +7,7 @@
 #include "headers/request.h"
 
 static void
-remaining_set(struct request_parser* p) {
+remaining_set(struct request_parser *p) {
     p->i = 0;
 }
 
@@ -19,69 +19,61 @@ remaining_set(struct request_parser* p) {
 //////////////////////////////////////////////////////////////////////////////
 
 static enum request_state
-verb(const uint8_t c, struct request_parser* p) {
+verb(const uint8_t c, struct request_parser *p) {
     enum request_state next;
-    if(c == ' '){
-        next = request_separator_arg1;
-    } else {
-        next = request_error;
-    }
-    /*
     switch (c) {
-        case 0x05:
-            next = request_separator_arg1;
+        case '\r':
+            next = request_cr;
             break;
         default:
-            next = request_error;
-            break;
-    }*/
+            next = request_verb;
+    }
+    if (next == request_verb) {
+        if (p->i < sizeof(p->request->verb) - 1) // TODO chequear esto
+            p->request->verb[p->i++] = (char) c;
+    } else {
+        p->request->verb[p->i] = 0;
+        //if (strcmp(p->request->verb, "data") == 0)
+        //next = request_data;
+    }
     return next;
 }
 
 static enum request_state
-separator_arg1(const uint8_t c, struct request_parser* p) {
+separator_arg1(const uint8_t c, struct request_parser *p) {
     //p->request->cmd = c;
 
     return request_separator_arg1;
 }
 
 static enum request_state
-arg1(const uint8_t c, struct request_parser* p) {
+arg1(const uint8_t c, struct request_parser *p) {
     return request_arg1;
 }
 
 extern void
-request_parser_init (struct request_parser* p) {
+request_parser_init(struct request_parser *p) {
     p->state = request_verb;
     memset(p->request, 0, sizeof(*(p->request)));
 }
 
 
-extern enum request_state 
-request_parser_feed (struct request_parser* p, const uint8_t c) {
+extern enum request_state
+request_parser_feed(struct request_parser *p, const uint8_t c) {
     enum request_state next;
 
-    switch(p->state) {
+    switch (p->state) {
         case request_verb:
-            switch(c) {
-                case '\r':
-                    next = request_cr;
-                    break;
-                default:
-                    next = request_verb;
-                    break;
-            }
+            next = verb(c, p);
             break;
-        /*
         case request_separator_arg1:
             next = separator_arg1(c, p);
             break;
         case request_arg1:
             next = arg1(c, p);
             break;
-            */
         case request_cr:
-            switch(c) {
+            switch (c) {
                 case '\n':
                     next = request_done;
                     break;
@@ -90,6 +82,7 @@ request_parser_feed (struct request_parser* p, const uint8_t c) {
                     break;
             }
             break;
+        case request_data:
         case request_done:
         case request_error:
             /*
@@ -105,9 +98,9 @@ request_parser_feed (struct request_parser* p, const uint8_t c) {
     return p->state = next;
 }
 
-extern bool 
+extern bool
 request_is_done(const enum request_state st, bool *errored) {
-    if(st >= request_error && errored != 0) {
+    if (st >= request_error && errored != 0) {
         *errored = true;
     }
     return st >= request_done;
@@ -117,12 +110,12 @@ extern enum request_state
 request_consume(buffer *b, struct request_parser *p, bool *errored) {
     enum request_state st = p->state;
 
-    while(buffer_can_read(b)) {
-       const uint8_t c = buffer_read(b);
-       st = request_parser_feed(p, c);
-       if(request_is_done(st, errored)) {
-          break;
-       }
+    while (buffer_can_read(b)) {
+        const uint8_t c = buffer_read(b);
+        st = request_parser_feed(p, c);
+        if (request_is_done(st, errored)) {
+            break;
+        }
     }
     return st;
 }

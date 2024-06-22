@@ -7,7 +7,7 @@
 #include "buffer.h"
 
 static const uint8_t METHOD_NO_AUTHENTICATION_REQUIRED = 0x00;
-static const uint8_t METHOD_NO_ACCEPTABLE_METHODS      = 0xFF;
+static const uint8_t METHOD_NO_ACCEPTABLE_METHODS = 0xFF;
 
 /*
  *   The client connects to the server, and sends a version
@@ -38,8 +38,8 @@ enum hello_state {
 
 struct hello_parser {
     /** invocado cada vez que se presenta un nuevo método */
-    void (*on_authentication_method) 
-         (struct hello_parser *parser, const uint8_t method);
+    void (*on_authentication_method)
+            (struct hello_parser *parser, const uint8_t method);
 
     /** permite al usuario del parser almacenar sus datos */
     void *data;
@@ -50,10 +50,10 @@ struct hello_parser {
 };
 
 /** inicializa el parser */
-void hello_parser_init (struct hello_parser *p);
+void hello_parser_init(struct hello_parser *p);
 
 /** entrega un byte al parser. retorna true si se llego al final  */
-enum hello_state hello_parser_feed (struct hello_parser *p, uint8_t b);
+enum hello_state hello_parser_feed(struct hello_parser *p, uint8_t b);
 
 /**
  * por cada elemento del buffer llama a `hello_parser_feed' hasta que
@@ -71,7 +71,7 @@ hello_consume(buffer *b, struct hello_parser *p, bool *errored);
  *
  * En caso de haber terminado permite tambien saber si se debe a un error
  */
-bool 
+bool
 hello_is_done(const enum hello_state state, bool *errored);
 
 /**

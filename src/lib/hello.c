@@ -6,17 +6,17 @@
 
 #include "headers/hello.h"
 
-extern void 
+extern void
 hello_parser_init(struct hello_parser *p) {
-    p->state     = hello_version;
+    p->state = hello_version;
     p->remaining = 0;
 }
 
 extern enum hello_state
 hello_parser_feed(struct hello_parser *p, const uint8_t b) {
-    switch(p->state) {
+    switch (p->state) {
         case hello_version:
-            if(0x05 == b) {
+            if (0x05 == b) {
                 p->state = hello_nmethods;
             } else {
                 p->state = hello_error_unsupported_version;
@@ -25,20 +25,20 @@ hello_parser_feed(struct hello_parser *p, const uint8_t b) {
 
         case hello_nmethods:
             p->remaining = b;
-            p->state     = hello_methods;
+            p->state = hello_methods;
 
-            if(p->remaining <= 0) {
+            if (p->remaining <= 0) {
                 p->state = hello_done;
             }
 
             break;
 
         case hello_methods:
-            if(NULL != p->on_authentication_method) {
+            if (NULL != p->on_authentication_method) {
                 p->on_authentication_method(p, b);
             }
             p->remaining--;
-            if(p->remaining <= 0) {
+            if (p->remaining <= 0) {
                 p->state = hello_done;
             }
             break;
@@ -54,7 +54,7 @@ hello_parser_feed(struct hello_parser *p, const uint8_t b) {
     return p->state;
 }
 
-extern bool 
+extern bool
 hello_is_done(const enum hello_state state, bool *errored) {
     bool ret;
     switch (state) {
@@ -70,7 +70,7 @@ hello_is_done(const enum hello_state state, bool *errored) {
             ret = false;
             break;
     }
-   return ret;
+    return ret;
 }
 
 extern const char *
@@ -87,7 +87,7 @@ hello_error(const struct hello_parser *p) {
     return ret;
 }
 
-extern void 
+extern void
 hello_parser_close(struct hello_parser *p) {
     /* no hay nada que liberar */
 }
@@ -96,7 +96,7 @@ extern enum hello_state
 hello_consume(buffer *b, struct hello_parser *p, bool *errored) {
     enum hello_state st = p->state;
 
-    while(buffer_can_read(b)) {
+    while (buffer_can_read(b)) {
         const uint8_t c = buffer_read(b);
         st = hello_parser_feed(p, c);
         if (hello_is_done(st, errored)) {
@@ -110,7 +110,7 @@ extern int
 hello_marshall(buffer *b, const uint8_t method) {
     size_t n;
     uint8_t *buff = buffer_write_ptr(b, &n);
-    if(n < 2) {
+    if (n < 2) {
         return -1;
     }
     buff[0] = 0x05;

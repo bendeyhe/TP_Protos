@@ -15,34 +15,36 @@ struct request {
 };
 
 enum request_state {
-   request_verb,
-   request_separator_arg1,
-   request_arg1,
-   request_cr,
+    request_verb,
+    request_separator_arg1,
+    request_arg1,
+    request_cr,
 
-   // apartir de aca están done
-   request_done,
+    request_data,
 
-   // y apartir de aca son considerado con error
-   request_error,
+    // apartir de aca están done
+    request_done,
 
-   //request_error_unsupported_atyp,
+    // y apartir de aca son considerado con error
+    request_error,
+
+    //request_error_unsupported_atyp,
 };
 
 struct request_parser {
-   struct request *request;
-   enum request_state state;
-   /** cuantos bytes ya leimos */
-   uint8_t i;
+    struct request *request;
+    enum request_state state;
+    /** cuantos bytes ya leimos */
+    uint8_t i;
 };
 
 /** inicializa el parser */
-void 
-request_parser_init (struct request_parser *p);
+void
+request_parser_init(struct request_parser *p);
 
 /** entrega un byte al parser. retorna true si se llego al final  */
-enum request_state 
-request_parser_feed (struct request_parser *p, const uint8_t c);
+enum request_state
+request_parser_feed(struct request_parser *p, const uint8_t c);
 
 /**
  * por cada elemento del buffer llama a `request_parser_feed' hasta que
@@ -60,7 +62,7 @@ request_consume(buffer *b, struct request_parser *p, bool *errored);
  *
  * En caso de haber terminado permite tambien saber si se debe a un error
  */
-bool 
+bool
 request_is_done(const enum request_state st, bool *errored);
 
 void

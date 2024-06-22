@@ -18,17 +18,17 @@ struct users {
  * - SockAddr para definir si bindeamos a localhost o no.
  */
 struct smtpargs {
-    char *          mail_directory;
+    char *mail_directory;
 
-    char           *socks_addr;
-    unsigned short  socks_port;
+    char *socks_addr;
+    unsigned short socks_port;
 
-    char *          mng_addr;
-    unsigned short  mng_port;
+    char *mng_addr;
+    unsigned short mng_port;
 
-    bool            disectors_enabled;
+    bool disectors_enabled;
 
-    struct users    users[MAX_USERS];
+    struct users users[MAX_USERS];
 };
 
 /**
@@ -36,7 +36,7 @@ struct smtpargs {
  * args con defaults o la seleccion humana. Puede cortar
  * la ejecución.
  */
-void 
+void
 parse_args(const int argc, char **argv, struct smtpargs *args);
 
 #endif

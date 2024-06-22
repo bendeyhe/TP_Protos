@@ -11,11 +11,11 @@
 /** usado por HELLO_READ, HELLO_WRITE */
 struct hello_st {
     /** buffer utilizado para I/O */
-    buffer               *rb, *wb;
+    buffer *rb, *wb;
     // struct hello_parser   parser;
     /** el método de autenticación seleccionado */
-    uint8_t               method;
-} ;
+    uint8_t method;
+};
 
 /*
  * Si bien cada estado tiene su propio struct que le da un alcance
@@ -35,11 +35,11 @@ struct smtp {
     int origin_fd;
 
     /** maquinas de estados */
-    struct state_machine          stm;
+    struct state_machine stm;
 
     /** estados para el client_fd */
     union {
-        struct hello_st           hello;
+        struct hello_st hello;
         /*struct request_st         request;
         struct copy               copy;*/
     } client;
@@ -58,7 +58,7 @@ struct smtp {
 void
 smtp_passive_accept(struct selector_key *key);
 
-struct smtp* smtp_new(int client);
+struct smtp *smtp_new(int client);
 
 static void smtp_destroy(struct smtp *s);
 

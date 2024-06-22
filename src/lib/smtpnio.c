@@ -50,7 +50,6 @@ enum socks_v5state {
     HELLO_WRITE,
 
 
-
     // estados terminales
     DONE,
     ERROR,
@@ -59,10 +58,14 @@ enum socks_v5state {
 /* declaración forward de los handlers de selección de una conexión
  * establecida entre un cliente y el proxy.
  */
-static void smtp_read   (struct selector_key *key);
-static void smtp_write  (struct selector_key *key);
-static void smtp_block  (struct selector_key *key);
-static void smtp_close  (struct selector_key *key);
+static void smtp_read(struct selector_key *key);
+
+static void smtp_write(struct selector_key *key);
+
+static void smtp_block(struct selector_key *key);
+
+static void smtp_close(struct selector_key *key);
+
 static const struct fd_handler smtp_handler = {
         .handle_read   = smtp_read,
         .handle_write  = smtp_write,
@@ -70,8 +73,7 @@ static const struct fd_handler smtp_handler = {
         .handle_block  = smtp_block,
 };
 
-struct smtp* smtp_new(const int client)
-{
+struct smtp *smtp_new(const int client) {
     struct smtp *new_smtp = calloc(1, sizeof(struct smtp));
     new_smtp->client_fd = client;
     return new_smtp;
@@ -105,34 +107,34 @@ smtp_destroy(struct smtp *s) {
 // Handlers top level de la conexión pasiva.
 // son los que emiten los eventos a la maquina de estados.
 static void
-smtp_done(struct selector_key* key);
+smtp_done(struct selector_key *key);
 
 static void
 smtp_read(struct selector_key *key) {
-    struct state_machine *stm   = &ATTACHMENT(key)->stm;
+    struct state_machine *stm = &ATTACHMENT(key)->stm;
     const enum socks_v5state st = stm_handler_read(stm, key);
 
-    if(ERROR == st || DONE == st) {
+    if (ERROR == st || DONE == st) {
         smtp_done(key);
     }
 }
 
 static void
 smtp_write(struct selector_key *key) {
-    struct state_machine *stm   = &ATTACHMENT(key)->stm;
+    struct state_machine *stm = &ATTACHMENT(key)->stm;
     const enum socks_v5state st = stm_handler_write(stm, key);
 
-    if(ERROR == st || DONE == st) {
+    if (ERROR == st || DONE == st) {
         smtp_done(key);
     }
 }
 
 static void
 smtp_block(struct selector_key *key) {
-    struct state_machine *stm   = &ATTACHMENT(key)->stm;
+    struct state_machine *stm = &ATTACHMENT(key)->stm;
     const enum socks_v5state st = stm_handler_block(stm, key);
 
-    if(ERROR == st || DONE == st) {
+    if (ERROR == st || DONE == st) {
         smtp_done(key);
     }
 }
@@ -143,14 +145,14 @@ smtp_close(struct selector_key *key) {
 }
 
 static void
-smtp_done(struct selector_key* key) {
+smtp_done(struct selector_key *key) {
     const int fds[] = {
             ATTACHMENT(key)->client_fd,
             ATTACHMENT(key)->origin_fd,
     };
-    for(unsigned i = 0; i < N(fds); i++) {
-        if(fds[i] != -1) {
-            if(SELECTOR_SUCCESS != selector_unregister_fd(key->s, fds[i])) {
+    for (unsigned i = 0; i < N(fds); i++) {
+        if (fds[i] != -1) {
+            if (SELECTOR_SUCCESS != selector_unregister_fd(key->s, fds[i])) {
                 abort();
             }
             close(fds[i]);
