@@ -2,6 +2,7 @@
  * request.c -- parser del request de SOCKS5
  */
 #include <string.h> // memset
+#include <stdio.h> // TODO borrar, esta momentaneamente para el printf
 #include <arpa/inet.h>
 
 #include "headers/request.h"
@@ -27,10 +28,14 @@ verb(const uint8_t c, struct request_parser *p) {
             break;
         default:
             next = request_verb;
+            break;
     }
     if (next == request_verb) {
-        if (p->i < sizeof(p->request->verb) - 1) // TODO chequear esto
-            p->request->verb[p->i++] = (char) c;
+        p->request->verb[p->i++] = (char) c;
+        //if (p->i < sizeof(p->request->verb) - 1){ // TODO chequear esto
+        //    p->request->verb[p->i++] = (char) c;
+            //printf("p->request->verb: %s\n", p->request->verb);
+        //}
     } else {
         p->request->verb[p->i] = 0;
         //if (strcmp(p->request->verb, "data") == 0)
@@ -42,24 +47,23 @@ verb(const uint8_t c, struct request_parser *p) {
 static enum request_state
 separator_arg1(const uint8_t c, struct request_parser *p) {
     //p->request->cmd = c;
-
     return request_separator_arg1;
 }
 
 static enum request_state
 arg1(const uint8_t c, struct request_parser *p) {
+    p->request->arg1[0] = (char) c;
     return request_arg1;
 }
 
 extern void
 request_parser_init(struct request_parser *p) {
     p->state = request_verb;
+    p->i = 0;
     memset(p->request, 0, sizeof(*(p->request)));
 }
 
-
-extern enum request_state
-request_parser_feed(struct request_parser *p, const uint8_t c) {
+extern enum request_state request_parser_feed(struct request_parser *p, const uint8_t c) {
     enum request_state next;
 
     switch (p->state) {

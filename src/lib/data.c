@@ -6,8 +6,7 @@
 
 #include "headers/data.h"
 
-static void
-remaining_set(struct data_parser *p) {
+static void remaining_set(struct data_parser *p) {
     //p->i = 0;
 }
 
@@ -18,8 +17,8 @@ remaining_set(struct data_parser *p) {
 
 //////////////////////////////////////////////////////////////////////////////
 
-static enum data_state
-verb(const uint8_t c, struct data_parser *p) {
+static enum data_state verb(const uint8_t c, struct data_parser *p) {
+    /*
     enum data_state next;
     switch (c) {
         case '\r':
@@ -37,33 +36,29 @@ verb(const uint8_t c, struct data_parser *p) {
         //next = data_data;
     }
     return next;
+     */
+    return 0;
 }
 
-static enum data_state
-write(const uint8_t c, struct data_parser *p) {
-    return data_arg1;
-}
-
-extern void
-data_parser_init(struct data_parser *p) {
-    p->state = data_verb;
-    memset(p->data, 0, sizeof(*(p->data)));
+extern void data_parser_init(struct data_parser *p) {
+    //p->state = data_verb;
+    //memset(p->data, 0, sizeof(*(p->data)));
 }
 
 
-extern enum data_state
-data_parser_feed(struct data_parser *p, const uint8_t c) {
-    enum data_state next;
+extern enum data_state data_parser_feed(struct data_parser *p, const uint8_t c) {
+    enum data_state next = 0; // TODO no hace falta inicializar esto
 
     switch (p->state) {
         case data_data:
-            next = verb(c, p);
+            buffer_write(p->output_buffer, c);
+            next = data_data;
             break;
         case data_cr:
-            next = separator_arg1(c, p);
+            //next = separator_arg1(c, p);
             break;
         case data_crlf:
-            next = arg1(c, p);
+            //next = arg1(c, p);
             break;
         case data_crlfdot:
             switch (c) {
@@ -71,43 +66,37 @@ data_parser_feed(struct data_parser *p, const uint8_t c) {
                     next = data_done;
                     break;
                 default:
-                    next = data_verb;
+                    //next = data_verb;
                     break;
             }
             break;
         case data_crlfdotcr:
         case data_done:
         default:
-            next = data_error;
+            next = data_done;
             break;
     }
 
     return p->state = next;
 }
 
-extern bool
-data_is_done(const enum data_state st, bool *errored) {
-    if (st >= data_error && errored != 0) {
-        *errored = true;
-    }
+extern bool data_is_done(const enum data_state st) {
     return st >= data_done;
 }
 
-extern enum data_state
-data_consume(buffer *b, struct data_parser *p, bool *errored) {
+extern enum data_state data_consume(buffer *b, struct data_parser *p, bool *errored) {
     enum data_state st = p->state;
 
     while (buffer_can_read(b)) {
         const uint8_t c = buffer_read(b);
         st = data_parser_feed(p, c);
-        if (data_is_done(st, errored)) {
+        if (data_is_done(st)) {
             break;
         }
     }
     return st;
 }
 
-extern void
-data_close(struct data_parser *p) {
+extern void data_close(struct data_parser *p) {
     // nada que hacer
 }
