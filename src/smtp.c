@@ -191,71 +191,75 @@ static bool request_process(struct smtp *state, unsigned current_state) {
             if (strcasecmp(state->request_parser.request->verb, "EHLO") == 0 ||
                 strcasecmp(state->request_parser.request->verb, "HELO") == 0) {
                 save_response(state, "250 server at your service\n");
-                return true;
+                state->go_to_next = true;
             } else {
                 save_response(state, "EHLO/HELO first is expected!\r\n");
-                return false;
             }
+            break;
         case WAITING_MAIL_FROM:
             if (strcasecmp(state->request_parser.request->verb, "MAIL FROM") == 0) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
                 strcpy(state->mail_from, state->request_parser.request->arg1);
                 save_response(state,
                               "250 OK - MAIL FROM: <mail_from>\r\n"); // TODO borrar despues el - MAIL FROM: <mail_from>
-                return true;
+                state->go_to_next = true;
             } else {
                 save_response(state, "Bad sequence of commands! MAIL FROM: is expected\r\n");
-                return false;
             }
+            break;
         case WAITING_RCPT_TO:
             if (strcasecmp(state->request_parser.request->verb, "RCPT TO") == 0) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
                 strcpy(state->mail_to, state->request_parser.request->arg1);
                 save_response(state, "250 OK - RCPT TO: <mail_to>\r\n"); // TODO borrar despues el - RCPT TO: <mail_to>
-                return true;
+                state->go_to_next = true;
             } else {
                 save_response(state, "Bad sequence of commands! RCPT TO: is expected\r\n");
-                return false;
             }
+            break;
         case WAITING_DATA:
             if (strcasecmp(state->request_parser.request->verb, "DATA") == 0) {
                 save_response(state, "354 Start mail input; end with <CRLF>.<CRLF>\r\n");
-                return true;
+                state->go_to_next = true;
             } else if (strcasecmp(state->request_parser.request->verb, "RCPT TO") == 0) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
                 strcpy(state->mail_to, state->request_parser.request->arg1);
-                save_response(state, "250 OK - RCPT TO: <mail_to>\r\n"); // TODO borrar despues el - RCPT TO: <mail_to>
-                return false;
+                save_response(state, "250 OK - RCPT TO: <mail_to>\r\n"); // TODO borrar despues el - RCPT TO
             } else {
                 save_response(state, "Bad sequence of commands! DATA is expected\r\n");
-                return false;
             }
+            break;
         default:
             return false;
+            break;
     }
+    return true;
 }
 
-static bool request_read2(struct selector_key *key, struct smtp *state, unsigned current_state) {
+static unsigned
+request_read2(struct selector_key *key, struct smtp *state, unsigned current_state, unsigned next_state) {
     bool error = false;
 
     int st = request_consume(&state->read_buffer, &state->request_parser, &error);
     if (request_is_done(st, 0)) {
         if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_WRITE)) {
-            state->go_to_next = request_process(state, current_state);
-            return state->go_to_next;
+            if(request_process(state, current_state))
+                return next_state;
+            else
+                return ERROR;
         } else {
-            return false;
+            return ERROR;
         }
     }
-    return false;
+    return current_state;
 }
 
-/** lee todos los bytes del mensaje de tipo `hello' y inicia su proceso */
-static bool request_read(struct selector_key *key, unsigned current_state) {
+static unsigned request_read(struct selector_key *key, unsigned current_state, unsigned next_state) {
     struct smtp *state = ATTACHMENT(key);
+    state->go_to_next = false;
 
     if (buffer_can_read(&state->read_buffer)) {
-        return request_read2(key, state, current_state);
+        return request_read2(key, state, current_state, next_state);
     } else {
         size_t count;
         uint8_t *ptr = buffer_write_ptr(&state->read_buffer, &count);
@@ -263,7 +267,7 @@ static bool request_read(struct selector_key *key, unsigned current_state) {
 
         if (n > 0) {
             buffer_write_adv(&state->read_buffer, n);
-            return request_read2(key, state, current_state);
+            return request_read2(key, state, current_state, next_state);
         } else {
             return false;
         }
@@ -271,6 +275,8 @@ static bool request_read(struct selector_key *key, unsigned current_state) {
 }
 
 static unsigned int data_read2(struct selector_key *key, struct smtp *state) {
+    return ERROR;
+    /*
     unsigned int ret = DATA_READ;
     bool error = false;
 
@@ -300,6 +306,7 @@ static unsigned int data_read2(struct selector_key *key, struct smtp *state) {
     } else {
         return DATA_READ;
     }
+     */
 }
 
 static unsigned data_read(struct selector_key *key) {
@@ -323,7 +330,9 @@ static unsigned data_read(struct selector_key *key) {
     return ret;
 }
 
-static bool response_write(struct selector_key *key) {
+static unsigned response_write(struct selector_key *key, unsigned current_state, unsigned next_state) {
+    unsigned ret = current_state;
+
     size_t count;
     buffer *wb = &ATTACHMENT(key)->write_buffer;
 
@@ -333,16 +342,16 @@ static bool response_write(struct selector_key *key) {
     if (n >= 0) {
         buffer_read_adv(wb, n);
         if (!buffer_can_read(wb)) {
-            if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_READ)) {
-                return true;
-            } else {
-                return false;
-            }
+            if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_READ))
+                ret = next_state;
+            else
+                ret = ERROR;
         }
     } else {
-        return false;
+        ret = ERROR;
     }
-    return false;
+
+    return ret;
 }
 
 static unsigned data_write(struct selector_key *key) {
@@ -350,56 +359,44 @@ static unsigned data_write(struct selector_key *key) {
 }
 
 static unsigned waiting_ehlo(struct selector_key *key) {
-    if (request_read(key, WAITING_EHLO))
-        return RESPONSE_EHLO;
-    else
-        return WAITING_EHLO;
+    return request_read(key, WAITING_EHLO, RESPONSE_EHLO);
 }
 
 static unsigned waiting_mail_from(struct selector_key *key) {
-    if (request_read(key, WAITING_MAIL_FROM))
-        return RESPONSE_MAIL_FROM;
-    else
-        return WAITING_MAIL_FROM;
+    return request_read(key, WAITING_MAIL_FROM, RESPONSE_MAIL_FROM);
 }
 
 static unsigned waiting_rcpt_to(struct selector_key *key) {
-    if (request_read(key, WAITING_RCPT_TO))
-        return RESPONSE_RCPT_TO;
-    else
-        return WAITING_RCPT_TO;
+    return request_read(key, WAITING_RCPT_TO, RESPONSE_RCPT_TO);
 }
 
 static unsigned waiting_data(struct selector_key *key) {
-    if (request_read(key, WAITING_DATA))
-        return DATA_READ;
-    else
-        return WAITING_DATA;
+    return request_read(key, WAITING_DATA, DATA_READ);
 }
 
 static unsigned welcome(struct selector_key *key) {
-    return response_write(key) ? WAITING_EHLO : ERROR;
+    return response_write(key, WELCOME, WAITING_EHLO);
 }
 
 static unsigned response_ehlo(struct selector_key *key) {
-    if (response_write(key))
-        return ATTACHMENT(key)->go_to_next ? WAITING_MAIL_FROM : WAITING_EHLO;
-    else
-        return ERROR;
+    if (response_write(key, RESPONSE_EHLO, WAITING_MAIL_FROM) == WAITING_MAIL_FROM
+        && ATTACHMENT(key)->go_to_next)
+        return WAITING_MAIL_FROM;
+    return WAITING_EHLO;
 }
 
 static unsigned response_mail_from(struct selector_key *key) {
-    if (response_write(key))
-        return ATTACHMENT(key)->go_to_next ? WAITING_RCPT_TO : WAITING_MAIL_FROM;
-    else
-        return ERROR;
+    if (response_write(key, RESPONSE_MAIL_FROM, WAITING_RCPT_TO) == WAITING_RCPT_TO
+        && ATTACHMENT(key)->go_to_next)
+        return WAITING_RCPT_TO;
+    return WAITING_MAIL_FROM;
 }
 
 static unsigned response_rcpt_to(struct selector_key *key) {
-    if (response_write(key))
-        return ATTACHMENT(key)->go_to_next ? WAITING_DATA : WAITING_RCPT_TO;
-    else
-        return ERROR;
+    if (response_write(key, RESPONSE_RCPT_TO, WAITING_DATA) == WAITING_DATA
+        && ATTACHMENT(key)->go_to_next)
+        return WAITING_DATA;
+    return WAITING_RCPT_TO;
 }
 
 /** definición de handlers para cada estado */
@@ -411,6 +408,7 @@ static const struct state_definition client_statbl[] = {
         {
                 .state            = WAITING_EHLO,
                 .on_arrival       = request_read_init,
+                .on_departure     = request_read_close,
                 .on_read_ready    = waiting_ehlo,
         },
         {
@@ -489,9 +487,10 @@ static void smtp_write(struct selector_key *key) {
     struct state_machine *stm = &ATTACHMENT(key)->stm;
     const enum smtp_state st = stm_handler_write(stm, key);
 
-    if (ERROR == st || DONE == st) {
+    if (ERROR == st || DONE == st) { // si hubo un error, cierro la conexión
         smtp_done(key);
-    } else if (WAITING_EHLO == st || WAITING_MAIL_FROM == st || WAITING_RCPT_TO == st || WAITING_DATA == st) {
+    } else if (WAITING_EHLO == st || WAITING_MAIL_FROM == st || WAITING_RCPT_TO == st || WAITING_DATA == st ||
+               DATA_READ == st) {
         buffer *rb = &ATTACHMENT(key)->read_buffer;
         if (buffer_can_read(rb)) {
             smtp_read(key); // si hay para leer en el buffer sigo leyendo sin quedarme bloqueado
@@ -499,13 +498,13 @@ static void smtp_write(struct selector_key *key) {
     }
 }
 
-static void smtp_close(struct selector_key *key) {
-    /*
-    socks5_destroy(ATTACHMENT(key));
-     */
-}
-
 static void smtp_done(struct selector_key *key) {
+    if (key->fd != -1) {
+        if (SELECTOR_SUCCESS != selector_unregister_fd(key->s, key->fd)) {
+            abort();
+        }
+        close(key->fd);
+    }
     /*
     const int fds[] = {
             ATTACHMENT(key)->client_fd,
@@ -524,6 +523,13 @@ static void smtp_done(struct selector_key *key) {
 
 static void smtp_destroy(struct smtp *state) {
     free(state);
+}
+
+static void smtp_close(struct selector_key *key) {
+    /*
+    socks5_destroy(ATTACHMENT(key));
+     */
+    smtp_destroy(ATTACHMENT(key));
 }
 
 /** Intenta aceptar la nueva conexión entrante*/
@@ -566,6 +572,8 @@ void smtp_passive_accept(struct selector_key *key) {
 
     state->request_parser.request = &state->request;
     request_parser_init(&state->request_parser);
+
+    data_parser_init(&state->data_parser);
 
     if (SELECTOR_SUCCESS != selector_register(key->s, client, &smtp_handler, OP_WRITE, state)) {
         goto fail;
