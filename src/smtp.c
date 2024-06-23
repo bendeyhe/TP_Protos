@@ -14,6 +14,7 @@
 #include "lib/headers/request.h"
 #include <strings.h>
 #include "lib/headers/data.h"
+#include <fcntl.h>
 
 #define N(x) (sizeof(x)/sizeof(x[0]))
 
@@ -38,6 +39,7 @@ struct smtp {
     buffer read_buffer, write_buffer, file_buffer;
 
     bool go_to_next;
+    bool go_to_rcpt_to;
     char mail_from[255];
     char mail_to[255];
     int file_fd;
@@ -132,12 +134,22 @@ enum smtp_state {
      *    - OP_READ sobre client_fd
      *
      * Transiciones:
-     *    - WAITING_DATA cuando se recibe 'rcpt to'
-     *    - WAITING_DATA mientras no se reciba el 'data'
-     *    - DATA_READ    cuando se recibe el 'data'
-     *    - ERROR        ante cualquier error (IO/parseo)
+     *    - RESPONSE_RCPT_TO cuando se recibe 'rcpt to'
+     *    - RESPONSE_DATA    cuando se recibe 'data'
+     *    - ERROR            ante cualquier error (IO/parseo)
      */
     WAITING_DATA,
+    /**
+     * escribe respuesta del DATA
+     *
+     * Intereses:
+     *    - OP_WRITE sobre client_fd
+     *
+     * Transiciones:
+     *    - DATA_READ cuando se completa la respuesta
+     *    - ERROR     ante cualquier error
+     */
+    RESPONSE_DATA,
     /**
 	 * lee la data del cliente.
 	 *
@@ -225,6 +237,8 @@ static bool request_process(struct smtp *state, unsigned current_state) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
                 strcpy(state->mail_to, state->request_parser.request->arg1);
                 save_response(state, "250 OK - RCPT TO: <mail_to>\r\n"); // TODO borrar despues el - RCPT TO
+                state->go_to_rcpt_to = true;
+                state->go_to_next = true;
             } else {
                 save_response(state, "Bad sequence of commands! DATA is expected\r\n");
             }
@@ -243,7 +257,7 @@ request_read2(struct selector_key *key, struct smtp *state, unsigned current_sta
     int st = request_consume(&state->read_buffer, &state->request_parser, &error);
     if (request_is_done(st, 0)) {
         if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_WRITE)) {
-            if(request_process(state, current_state))
+            if (request_process(state, current_state))
                 return next_state;
             else
                 return ERROR;
@@ -275,38 +289,41 @@ static unsigned request_read(struct selector_key *key, unsigned current_state, u
 }
 
 static unsigned int data_read2(struct selector_key *key, struct smtp *state) {
-    return ERROR;
-    /*
-    unsigned int ret = DATA_READ;
-    bool error = false;
+    unsigned ret = DATA_READ;
+    enum data_state st = state->data_parser.state;
 
     buffer *rb = &state->read_buffer;
     buffer *wb = &state->file_buffer;
 
+    const int file = open("output_mail.txt", O_CREAT | O_WRONLY | O_APPEND, 0644);
+    if (file == -1)
+        return ERROR;
+
+    size_t count;
+    uint8_t *ptr = buffer_write_ptr(wb, &count);
+    ssize_t n = write(file, ptr, count);
+
     while (buffer_can_read(rb)) {
         const uint8_t c = buffer_read(rb);
         st = data_parser_feed(&state->data_parser, c);
-        if (data_is_done(st, &error)) {
+        printf("DATA READ2 after data_parser_feed\n");
+        if (data_is_done(st)) {
             break;
         }
     }
 
-    struct selector_key *file_key = malloc(sizeof(struct selector_key));
-
-    if (data_is_done(st, &error)) {
-        if (SELECTOR_SUCCESS != selector_register(key->s, state->file_fd, &smtp_handler, OP_WRITE, state)) {
-            return ERROR;
+    if (n > 0) {
+        buffer_write_adv(wb, n);
+        if(data_is_done(st)) {
+            if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_WRITE))
+                ret = DATA_WRITE;
+            else
+                ret = DATA_READ;
         }
-        if (SELECTOR_SUCCESS != selector_set_interest_key(file_key, OP_NOOP)) {
-            return ERROR;
-        }
-        return DATA_WRITE;
-    } else if (error) {
-        return ERROR;
     } else {
-        return DATA_READ;
+        ret = ERROR;
     }
-     */
+    return ret;
 }
 
 static unsigned data_read(struct selector_key *key) {
@@ -332,6 +349,7 @@ static unsigned data_read(struct selector_key *key) {
 
 static unsigned response_write(struct selector_key *key, unsigned current_state, unsigned next_state) {
     unsigned ret = current_state;
+    bool error = false;
 
     size_t count;
     buffer *wb = &ATTACHMENT(key)->write_buffer;
@@ -371,7 +389,11 @@ static unsigned waiting_rcpt_to(struct selector_key *key) {
 }
 
 static unsigned waiting_data(struct selector_key *key) {
-    return request_read(key, WAITING_DATA, DATA_READ);
+    ATTACHMENT(key)->go_to_rcpt_to = false;
+    unsigned ret = request_read(key, WAITING_DATA, RESPONSE_DATA);
+    if (ATTACHMENT(key)->go_to_rcpt_to)
+        ret = RESPONSE_RCPT_TO;
+    return ret;
 }
 
 static unsigned welcome(struct selector_key *key) {
@@ -397,6 +419,13 @@ static unsigned response_rcpt_to(struct selector_key *key) {
         && ATTACHMENT(key)->go_to_next)
         return WAITING_DATA;
     return WAITING_RCPT_TO;
+}
+
+static unsigned response_data(struct selector_key *key) {
+    if (response_write(key, RESPONSE_DATA, DATA_READ) == DATA_READ
+        && ATTACHMENT(key)->go_to_next)
+        return DATA_READ;
+    return WAITING_DATA;
 }
 
 /** definición de handlers para cada estado */
@@ -437,6 +466,10 @@ static const struct state_definition client_statbl[] = {
                 .state            = WAITING_DATA,
                 .on_arrival       = request_read_init,
                 .on_read_ready    = waiting_data,
+        },
+        {
+                .state            = RESPONSE_DATA,
+                .on_write_ready   = response_data,
         },
         {
                 .state            = DATA_READ,

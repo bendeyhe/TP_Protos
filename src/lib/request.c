@@ -5,19 +5,15 @@
 #include <strings.h>
 #include <stdio.h>
 
-// Define the maximum length for verbs and arguments
-#define MAX_VERB_LENGTH 16
-#define MAX_ARG_LENGTH 256
-
 static void remaining_set(struct request_parser *p) {
     p->i = 0;
 }
 
-static enum request_state
-verb(const uint8_t c, struct request_parser *p) {
+static enum request_state verb(const uint8_t c, struct request_parser *p) {
     enum request_state next;
     switch (c) {
         case '\r':
+            printf("verb -> cr, %s\n", p->request->verb);
             next = request_cr;
             break;
         case ' ':
