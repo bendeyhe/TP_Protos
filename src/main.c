@@ -39,8 +39,7 @@ sigterm_handler(const int signal) {
     done = true;
 }
 
-int
-main(const int argc, char **argv) {
+int main(const int argc, char **argv) {
     struct smtpargs args;
 
     parse_args(argc, argv, &args);

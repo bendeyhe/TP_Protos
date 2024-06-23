@@ -50,8 +50,7 @@ void jump(struct state_machine *stm, unsigned next, struct selector_key *key) {
     }
 }
 
-unsigned
-stm_handler_read(struct state_machine *stm, struct selector_key *key) {
+unsigned stm_handler_read(struct state_machine *stm, struct selector_key *key) {
     handle_first(stm, key);
     if (stm->current->on_read_ready == 0) {
         abort();

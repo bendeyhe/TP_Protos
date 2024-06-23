@@ -197,7 +197,7 @@ static bool request_process(struct smtp *state, unsigned current_state) {
                 return false;
             }
         case WAITING_MAIL_FROM:
-            if (strcasecmp(state->request_parser.request->verb, "MAIL FROM:") == 0) {
+            if (strcasecmp(state->request_parser.request->verb, "MAIL FROM") == 0) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
                 strcpy(state->mail_from, state->request_parser.request->arg1);
                 save_response(state,
@@ -208,7 +208,7 @@ static bool request_process(struct smtp *state, unsigned current_state) {
                 return false;
             }
         case WAITING_RCPT_TO:
-            if (strcasecmp(state->request_parser.request->verb, "RCPT TO:") == 0) {
+            if (strcasecmp(state->request_parser.request->verb, "RCPT TO") == 0) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
                 strcpy(state->mail_to, state->request_parser.request->arg1);
                 save_response(state, "250 OK - RCPT TO: <mail_to>\r\n"); // TODO borrar despues el - RCPT TO: <mail_to>
@@ -221,7 +221,7 @@ static bool request_process(struct smtp *state, unsigned current_state) {
             if (strcasecmp(state->request_parser.request->verb, "DATA") == 0) {
                 save_response(state, "354 Start mail input; end with <CRLF>.<CRLF>\r\n");
                 return true;
-            } else if (strcasecmp(state->request_parser.request->verb, "RCPT TO:") == 0) {
+            } else if (strcasecmp(state->request_parser.request->verb, "RCPT TO") == 0) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
                 strcpy(state->mail_to, state->request_parser.request->arg1);
                 save_response(state, "250 OK - RCPT TO: <mail_to>\r\n"); // TODO borrar despues el - RCPT TO: <mail_to>
@@ -275,33 +275,34 @@ static unsigned int data_read2(struct selector_key *key, struct smtp *state) {
     bool error = false;
 
     buffer *rb = &state->read_buffer;
-    enum data_state st = state->data_parser.state;
+    buffer *wb = &state->file_buffer;
 
     while (buffer_can_read(rb)) {
         const uint8_t c = buffer_read(rb);
-
         st = data_parser_feed(&state->data_parser, c);
-        if (data_is_done(st)) {
+        if (data_is_done(st, &error)) {
             break;
         }
     }
 
-    struct selector_key key_file;
+    struct selector_key *file_key = malloc(sizeof(struct selector_key));
 
-    // TODO write to file from buffer if it is not empty
-    if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_NOOP)) {
-        if (SELECTOR_SUCCESS == selector_set_interest_key(&key_file, OP_WRITE))
-            ret = DATA_WRITE; // vuelvo a request_read
+    if (data_is_done(st, &error)) {
+        if (SELECTOR_SUCCESS != selector_register(key->s, state->file_fd, &smtp_handler, OP_WRITE, state)) {
+            return ERROR;
+        }
+        if (SELECTOR_SUCCESS != selector_set_interest_key(file_key, OP_NOOP)) {
+            return ERROR;
+        }
+        return DATA_WRITE;
+    } else if (error) {
+        return ERROR;
     } else {
-        ret = ERROR;
+        return DATA_READ;
     }
-
-    return ret;
 }
 
 static unsigned data_read(struct selector_key *key) {
-    return 1;
-    /*
     unsigned ret;
     struct smtp *state = ATTACHMENT(key);
 
@@ -320,7 +321,6 @@ static unsigned data_read(struct selector_key *key) {
         }
     }
     return ret;
-     */
 }
 
 static bool response_write(struct selector_key *key) {
@@ -350,23 +350,31 @@ static unsigned data_write(struct selector_key *key) {
 }
 
 static unsigned waiting_ehlo(struct selector_key *key) {
-    request_read(key, WAITING_EHLO);
-    return RESPONSE_EHLO;
+    if (request_read(key, WAITING_EHLO))
+        return RESPONSE_EHLO;
+    else
+        return WAITING_EHLO;
 }
 
 static unsigned waiting_mail_from(struct selector_key *key) {
-    request_read(key, WAITING_MAIL_FROM);
-    return RESPONSE_MAIL_FROM;
+    if (request_read(key, WAITING_MAIL_FROM))
+        return RESPONSE_MAIL_FROM;
+    else
+        return WAITING_MAIL_FROM;
 }
 
 static unsigned waiting_rcpt_to(struct selector_key *key) {
-    request_read(key, WAITING_RCPT_TO);
-    return RESPONSE_RCPT_TO;
+    if (request_read(key, WAITING_RCPT_TO))
+        return RESPONSE_RCPT_TO;
+    else
+        return WAITING_RCPT_TO;
 }
 
 static unsigned waiting_data(struct selector_key *key) {
-    request_read(key, WAITING_DATA);
-    return DATA_READ;
+    if (request_read(key, WAITING_DATA))
+        return DATA_READ;
+    else
+        return WAITING_DATA;
 }
 
 static unsigned welcome(struct selector_key *key) {
@@ -403,7 +411,6 @@ static const struct state_definition client_statbl[] = {
         {
                 .state            = WAITING_EHLO,
                 .on_arrival       = request_read_init,
-                .on_departure     = request_read_close,
                 .on_read_ready    = waiting_ehlo,
         },
         {
@@ -412,8 +419,7 @@ static const struct state_definition client_statbl[] = {
         },
         {
                 .state            = WAITING_MAIL_FROM,
-                //.on_arrival       = request_read_init,
-                .on_departure     = request_read_close,
+                .on_arrival       = request_read_init,
                 .on_read_ready    = waiting_mail_from,
         },
         {
@@ -422,8 +428,7 @@ static const struct state_definition client_statbl[] = {
         },
         {
                 .state            = WAITING_RCPT_TO,
-                //.on_arrival       = request_read_init,
-                .on_departure     = request_read_close,
+                .on_arrival       = request_read_init,
                 .on_read_ready    = waiting_rcpt_to,
         },
         {
@@ -432,14 +437,12 @@ static const struct state_definition client_statbl[] = {
         },
         {
                 .state            = WAITING_DATA,
-                //.on_arrival       = request_read_init,
-                .on_departure     = request_read_close,
-                .on_write_ready   = waiting_data,
+                .on_arrival       = request_read_init,
+                .on_read_ready    = waiting_data,
         },
         {
                 .state            = DATA_READ,
-                //.on_arrival       = request_read_init,
-                .on_departure     = request_read_close,
+                .on_arrival       = request_read_init,
                 .on_read_ready    = data_read,
         },
         {

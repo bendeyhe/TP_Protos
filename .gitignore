@@ -10,6 +10,7 @@
 # Ignorar carpetas .idea y cmake-build-debug
 .idea/
 cmake-build-debug/
+.vscode/
 
 # Ignorar archivos con extensión .o
 *.o

@@ -10,7 +10,7 @@
 
 
 struct request {
-    char verb[10];
+    char verb[12];
     char arg1[32];
 };
 
