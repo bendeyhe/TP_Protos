@@ -11,7 +11,7 @@
 
 CFLAGS:= -std=c11 -pedantic -pedantic-errors -g -Og -Wall -Werror -Wextra -D_POSIX_C_SOURCE=200112L -fsanitize=address -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -pthread
 SMTPD_CLI:= smtpd
-SMTPD_OBJS:= lib/args.o lib/selector.o main.o smtp.o lib/stm.o lib/buffer.o lib/request.o lib/data.o lib/stats.o
+SMTPD_OBJS:= lib/args.o lib/selector.o main.o smtp.o lib/stm.o lib/buffer.o lib/request.o lib/data.o lib/stats.o manager/client/client_manager.o manager/server/manager.o
 
 .PHONY: all clean test
 
@@ -20,7 +20,7 @@ all: $(SMTPD_CLI)
 $(SMTPD_CLI): $(SMTPD_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^
 
-main.o: smtp.h
+main.o: smtp.h manager/server/manager.h
 
 selector.o: lib/headers/selector.h
 
@@ -38,6 +38,10 @@ data.o: lib/headers/data.h lib/headers/buffer.h
 
 stats.o: lib/headers/stats.h
 
+client_manager.o: manager/client/client_manager.h
+
+manager.o: manager/server/manager.h lib/headers/stm.h lib/headers/selector.h
+
 clean:
 	- rm -rf $(SMTPD_CLI) $(SMTPD_OBJS) request_test
 
@@ -47,3 +51,5 @@ request_test: test/request_test.o lib/request.o lib/buffer.o
 test: request_test
 	./request_test
 
+manager: manager/server/manager.o lib/selector.o lib/stm.o
+	$(CC) $(CFLAGS) -o $@ $^ -pthread

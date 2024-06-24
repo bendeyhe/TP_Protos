@@ -86,10 +86,10 @@ int main(const int argc, char **argv) {
 
     // man 7 ip. no importa reportar nada si falla.
     setsockopt(server, SOL_SOCKET, SO_REUSEADDR, &(int) {1}, sizeof(int));
-    setsockopt(server, IPPROTO_IPV6, IPV6_V6ONLY, &enabled, sizeof(off));
+    setsockopt(server, IPPROTO_IPV6, IPV6_V6ONLY, &enabled, sizeof(enabled));
 
     setsockopt(server_mng, SOL_SOCKET, SO_REUSEADDR, &(int) {1}, sizeof(int));
-    setsockopt(server_mng, IPPROTO_IPV6, IPV6_V6ONLY, &enabled, sizeof(off));
+    setsockopt(server_mng, IPPROTO_IPV6, IPV6_V6ONLY, &enabled, sizeof(enabled));
 
     if (bind(server, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
         err_msg = "unable to bind socket smtp";

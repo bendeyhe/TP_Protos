@@ -3,20 +3,10 @@
 #include "../../lib/headers/stm.h"
 #include <sys/socket.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdint.h>
 
 char buff[1024];
-
-struct manager {
-    /** buffer de recepción */
-    int client_fd;
-
-    /** información del cliente */
-    struct sockaddr_storage client_addr;
-    socklen_t client_addr_len;
-
-    /** buffer de recepción */
-    uint8_t *read_buffer;
-};
 
 void manager_passive_accept(struct selector_key *key) {
     // voy a aceptar la conexion
@@ -36,7 +26,7 @@ void manager_passive_accept(struct selector_key *key) {
 
     buff[rcv] = 0;
 
-    printf("Recibido: %s\n", datagram);
+    //printf("Recibido: %s\n", datagram);
 
     switch (buff[0]) {
         case 'h':
