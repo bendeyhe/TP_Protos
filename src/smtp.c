@@ -16,8 +16,11 @@
 #include "lib/headers/data.h"
 #include "lib/headers/stats.h"
 #include <fcntl.h>
+#include <sys/stat.h>
 
 #define N(x) (sizeof(x)/sizeof(x[0]))
+
+// TODO USAR MIN PARA ESCRIBIR EN LOS BUFFERS!!
 
 /** obtiene el struct (smtp *) desde la llave de selección **/
 #define ATTACHMENT(key) ((struct smtp *)(key)->data)
@@ -447,16 +450,25 @@ static unsigned data_read(struct selector_key *key) {
 static unsigned data_write(struct selector_key *key) {
     struct smtp *state = ATTACHMENT(key);
 
-    //quiero abrir un archivo pero que si ya existe lo sobreescriba
-    //state->file_fd = open("output_mail.txt", O_CREAT | O_WRONLY | O_APPEND, 0644);
-    state->file_fd = open(state->mail_to, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+    // implementacion de mailbox
+    // si no tiene carpeta, la crea
+    struct stat mail_stat = {0};
+    if(-1 == stat("mails", &mail_stat)) {
+        if(-1 == mkdir("mails", 0777)) {
+            return ERROR;
+        }
+    }
+
+    char name[128] = "mails/";
+    strcat(name, state->mail_to);
+    strcat(name, ".txt");
+
+    state->file_fd = open(name, O_CREAT | O_WRONLY | O_APPEND, 0777);
     if (state->file_fd == -1) return ERROR;
 
     size_t count;
     uint8_t *ptr = buffer_read_ptr(&state->data_parser.output_buffer, &count);
     ssize_t n = write(state->file_fd, ptr, count);
-
-
 
     if (n >= 0) {
         buffer_read_adv(&state->data_parser.output_buffer, n);

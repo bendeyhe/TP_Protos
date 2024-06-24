@@ -20,8 +20,8 @@ struct users {
 struct smtpargs {
     char *mail_directory;
 
-    char *socks_addr;
-    unsigned short socks_port;
+    char *smtp_addr;
+    unsigned short smtp_port;
 
     char *mng_addr;
     unsigned short mng_port;

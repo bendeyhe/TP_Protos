@@ -30,3 +30,4 @@ void getStats(TStats *stats2) {
     stats2->bytesSent = stats.bytesSent;
     stats2->bytesReceived = stats.bytesReceived;
 }
+

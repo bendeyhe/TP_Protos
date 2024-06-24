@@ -34,7 +34,6 @@ user(char *s, struct users *user) {
         user->name = s;
         user->pass = p;
     }
-
 }
 
 static void
@@ -51,11 +50,11 @@ usage(const char *progname) {
             "Usage: %s [OPTION]...\n"
             "\n"
             "   -h               Imprime la ayuda y termina.\n"
-            "   -l <SOCKS addr>  Dirección donde servirá el proxy SOCKS.\n"
-            "   -L <conf  addr>  Dirección donde servirá el servicio de management.\n"
-            "   -p <SOCKS port>  Puerto entrante conexiones SOCKS.\n"
+            "   -l <SMTP addr>   Dirección donde servirá el SMTP.\n"
+            "   -L <conf addr>   Dirección donde servirá el servicio de management.\n"
+            "   -p <SMTP port>   Puerto entrante conexiones SMTP.\n"
             "   -P <conf port>   Puerto entrante conexiones configuracion\n"
-            "   -u <name>:<pass> Usuario y contraseña de usuario que puede usar el proxy. Hasta 10.\n"
+            "   -u <name>:<pass> Usuario y contraseña de usuario que puede usar el servidor. Hasta 10.\n"
             "   -v               Imprime información sobre la versión versión y termina.\n"
             "\n",
             progname);
@@ -66,11 +65,11 @@ void
 parse_args(const int argc, char **argv, struct smtpargs *args) {
     memset(args, 0, sizeof(*args)); // sobre todo para setear en null los punteros de users
 
-    args->socks_addr = "0.0.0.0";
-    args->socks_port = 2525;
+    args->smtp_addr = "0.0.0.0";
+    args->smtp_port = 2525;
 
     args->mng_addr = "127.0.0.1";
-    args->mng_port = 8080;
+    args->mng_port = 7374;
 
     args->disectors_enabled = true;
 
@@ -92,7 +91,7 @@ parse_args(const int argc, char **argv, struct smtpargs *args) {
                 usage(argv[0]);
                 break;
             case 'l':
-                args->socks_addr = optarg;
+                args->smtp_addr = optarg;
                 break;
             case 'L':
                 args->mng_addr = optarg;
@@ -101,7 +100,7 @@ parse_args(const int argc, char **argv, struct smtpargs *args) {
                 args->disectors_enabled = false;
                 break;
             case 'p':
-                args->socks_port = port(optarg);
+                args->smtp_port = port(optarg);
                 break;
             case 'P':
                 args->mng_port = port(optarg);

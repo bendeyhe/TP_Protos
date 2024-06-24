@@ -11,7 +11,7 @@
 
 CFLAGS:= -std=c11 -pedantic -pedantic-errors -g -Og -Wall -Werror -Wextra -D_POSIX_C_SOURCE=200112L -fsanitize=address -Wno-unused-parameter -Wno-unused-variable -Wno-unused-function -pthread
 SMTPD_CLI:= smtpd
-SMTPD_OBJS:= lib/args.o lib/selector.o main.o smtp.o lib/stm.o lib/buffer.o lib/request.o lib/data.o
+SMTPD_OBJS:= lib/args.o lib/selector.o main.o smtp.o lib/stm.o lib/buffer.o lib/request.o lib/data.o lib/stats.o
 
 .PHONY: all clean test
 
@@ -26,7 +26,7 @@ selector.o: lib/headers/selector.h
 
 args.o : lib/headers/args.h
 
-smtp.o: smtp.h lib/headers/stm.h lib/headers/buffer.h
+smtp.o: smtp.h lib/headers/stm.h lib/headers/buffer.h lib/headers/request.h lib/headers/data.h lib/headers/stats.h
 
 stm.o: lib/headers/stm.h
 
@@ -35,6 +35,8 @@ buffer.o: lib/headers/buffer.h
 request.o: lib/headers/request.h lib/headers/buffer.h
 
 data.o: lib/headers/data.h lib/headers/buffer.h
+
+stats.o: lib/headers/stats.h
 
 clean:
 	- rm -rf $(SMTPD_CLI) $(SMTPD_OBJS) request_test
