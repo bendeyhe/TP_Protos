@@ -4,28 +4,29 @@
 #include <stdlib.h>
 
 typedef struct {
-       //suma de todas las conexiones desde siempre
-     size_t historicConnectionQuantity;
+    //suma de todas las conexiones desde siempre
+    size_t historicConnectionQuantity;
 
-     size_t currentConnectionQuantity;
+    //cantidad de conexiones actuales
+    size_t currentConnectionQuantity;
 
-     //cantidad de bytes enviados por el servidor
-     size_t bytesSent;
+    //cantidad de bytes enviados por el servidor
+    size_t bytesSent;
 
-     //cantidad de bytes recibidos por el servidor
-     size_t bytesReceived;
+    //cantidad de bytes recibidos por el servidor
+    size_t bytesReceived;
 } TStats;
 
-    void statsInit();
+void statsInit();
 
-    void newUserConnection();
+void newUserConnection();
 
-    void userDisconnection();
+void userDisconnection();
 
-    void bytesSent(size_t bytes);
+void bytesSent(size_t bytes);
 
-    void bytesReceived(size_t bytes);
+void bytesReceived(size_t bytes);
 
-    void getStats(TStats *stats);
+void getStats(TStats *stats);
 
 #endif

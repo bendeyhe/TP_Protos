@@ -14,6 +14,7 @@
 #include "lib/headers/request.h"
 #include <strings.h>
 #include "lib/headers/data.h"
+#include "lib/headers/stats.h"
 #include <fcntl.h>
 
 #define N(x) (sizeof(x)/sizeof(x[0]))
@@ -315,6 +316,8 @@ static unsigned request_read(struct selector_key *key, unsigned current_state, u
         uint8_t *ptr = buffer_write_ptr(&state->read_buffer, &count);
         ssize_t n = recv(key->fd, ptr, count, 0);
 
+        bytesReceived(n);
+
         if (n > 0) {
             buffer_write_adv(&state->read_buffer, n);
             return request_read2(key, state, current_state, next_state);
@@ -347,6 +350,8 @@ static unsigned read_data(struct selector_key *key, unsigned current_state, unsi
         uint8_t *ptr = buffer_write_ptr(&state->read_buffer, &count);
         ssize_t n = recv(key->fd, ptr, count, 0);
 
+        bytesReceived(n);
+
         if (n > 0) {
             buffer_write_adv(&state->read_buffer, n);
             return read_data2(key, state, current_state, next_state);
@@ -364,6 +369,8 @@ static unsigned response_write(struct selector_key *key, unsigned current_state,
 
     uint8_t *ptr = buffer_read_ptr(wb, &count);
     ssize_t n = send(key->fd, ptr, count, MSG_NOSIGNAL);
+
+    bytesSent(n);
 
     if (n >= 0) {
         buffer_read_adv(wb, n);
@@ -448,6 +455,8 @@ static unsigned data_write(struct selector_key *key) {
     size_t count;
     uint8_t *ptr = buffer_read_ptr(&state->data_parser.output_buffer, &count);
     ssize_t n = write(state->file_fd, ptr, count);
+
+
 
     if (n >= 0) {
         buffer_read_adv(&state->data_parser.output_buffer, n);
@@ -614,12 +623,10 @@ static void smtp_destroy(struct smtp *state) {
 }
 
 static void smtp_close(struct selector_key *key) {
-    /*
-    socks5_destroy(ATTACHMENT(key));
-     */
     if (ATTACHMENT(key)->file_fd != -1) {
         close(ATTACHMENT(key)->file_fd);
     }
+    userDisconnection();
     smtp_destroy(ATTACHMENT(key));
 }
 
@@ -643,6 +650,9 @@ void smtp_passive_accept(struct selector_key *key) {
         // que se liberó alguna conexión.
         goto fail;
     }
+
+    newUserConnection();
+
     memset(state, 0, sizeof(*state));
     memcpy(&state->client_addr, &client_addr, client_addr_len);
     state->client_addr_len = client_addr_len;

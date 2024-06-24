@@ -25,6 +25,7 @@
 #include <netinet/tcp.h>
 
 #include "lib/headers/args.h"
+#include "lib/headers/stats.h"
 
 //#include "socks5.h"
 #include "lib/headers/selector.h"
@@ -50,6 +51,8 @@ int main(const int argc, char **argv) {
     const char *err_msg = NULL;
     selector_status ss = SELECTOR_SUCCESS;
     fd_selector selector = NULL;
+
+    statsInit();
 
     struct sockaddr_in addr;
     memset(&addr, 0, sizeof(addr));
