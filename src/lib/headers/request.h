@@ -53,8 +53,7 @@ request_parser_feed(struct request_parser *p, const uint8_t c);
  * @param errored parametro de salida. si es diferente de NULL se deja dicho
  *   si el parsing se debió a una condición de error
  */
-enum request_state
-request_consume(buffer *b, struct request_parser *p, bool *errored);
+enum request_state request_consume(buffer *b, struct request_parser *p, bool *errored);
 
 /**
  * Permite distinguir a quien usa socks_hello_parser_feed si debe seguir
@@ -62,10 +61,8 @@ request_consume(buffer *b, struct request_parser *p, bool *errored);
  *
  * En caso de haber terminado permite tambien saber si se debe a un error
  */
-bool
-request_is_done(const enum request_state st, bool *errored);
+bool request_is_done(const enum request_state st, bool *errored);
 
-void
-request_close(struct request_parser *p);
+void request_close(struct request_parser *p);
 
 #endif

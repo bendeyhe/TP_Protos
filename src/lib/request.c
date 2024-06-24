@@ -13,7 +13,6 @@ static enum request_state verb(const uint8_t c, struct request_parser *p) {
     enum request_state next;
     switch (c) {
         case '\r':
-            printf("verb -> cr, %s\n", p->request->verb);
             next = request_cr;
             break;
         case ' ':

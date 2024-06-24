@@ -41,9 +41,31 @@ enum data_state {
 };
 
 struct data_parser {
+    /**
+     * El estado del parser
+     *
+     * data_data: estoy leyendo data
+     * data_cr: leí un CR
+     * data_crlf: leí un LF
+     * data_crlfdot: leí un .
+     * data_crlfdotcr: leí un CR
+     * data_done: terminé
+     *
+     * data_data -> data_cr -> data_crlf -> data_crlfdot -> data_crlfdotcr -> data_done
+     */
     enum data_state state;
-
-    buffer * output_buffer;
+    /**
+     * Buffer de salida
+     *
+     * Se usa para almacenar los datos que se van parseando
+     */
+    buffer output_buffer;
+    /**
+     * Cuantos bytes ya leimos
+     *
+     * Se usa para saber cuantos bytes se leyeron
+     */
+    uint8_t bytes[1024];
 };
 
 /** inicializa el parser */

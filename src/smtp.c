@@ -67,6 +67,7 @@ enum smtp_state {
      * Transiciones:
      *    - WAITING_EHLO      mientras no se reciba el saludo
      *    - RESPONSE_EHLO     cuando se recibe el saludo
+     *    - QUIT              cuando se recibe el comando QUIT
      *    - ERROR             ante cualquier error (IO/parseo)
      */
     WAITING_EHLO,
@@ -90,6 +91,7 @@ enum smtp_state {
      * Transiciones:
      *    - WAITING_MAIL_FROM  mientras no se reciba el 'mail from'
      *    - RESPONSE_MAIL_FROM cuando se recibe el 'mail from'
+     *    - QUIT               cuando se recibe el comando QUIT
      *    - ERROR              ante cualquier error (IO/parseo)
      */
     WAITING_MAIL_FROM,
@@ -113,6 +115,7 @@ enum smtp_state {
      * Transiciones:
      *    - WAITING_RCPT_TO  mientras no se reciba el 'rcpt to'
      *    - RESPONSE_RCPT_TO cuando se recibe el 'rcpt to'
+     *    - QUIT             cuando se recibe el comando QUIT
      *    - ERROR            ante cualquier error (IO/parseo)
      */
     WAITING_RCPT_TO,
@@ -136,6 +139,7 @@ enum smtp_state {
      * Transiciones:
      *    - RESPONSE_RCPT_TO cuando se recibe 'rcpt to'
      *    - RESPONSE_DATA    cuando se recibe 'data'
+     *    - QUIT             cuando se recibe el comando QUIT
      *    - ERROR            ante cualquier error (IO/parseo)
      */
     WAITING_DATA,
@@ -154,23 +158,47 @@ enum smtp_state {
 	 * lee la data del cliente.
 	 *
 	 * Intereses:
-	 *     - OP_READ sobre client_fd
+	 *    - OP_READ sobre client_fd
 	 *
+     * Transiciones:
+     *    - DATA_READ          mientras haya cosas para leer
+     *    - DATA_WRITE         cuando se completa la lectura
+     *    - ERROR              ante cualquier error (IO/parseo)
 	 */
     DATA_READ,
     /**
-	 * escribe la data del cliente.
+	 * escribe la data en el archivo.
 	 *
 	 * Intereses:
-     *     - NOP      sobre client_fd
-	 *     - OP_WRITE sobre archivo_fd
+     *    - NOP      sobre client_fd
+	 *    - OP_WRITE sobre archivo_fd
 	 *
      * Transiciones:
-     *   - DATA_WRITE  mientras tenga cosas para escribir
-     *   - DATA_READ   cuando se me vació el buffer
-     *   - ERROR       ante cualquier error (IO/parseo)
+     *    - RESPONSE_DATA_WRITE cuando se completa la escritura
+     *    - ERROR               ante cualquier error
 	 */
     DATA_WRITE,
+    /**
+     * escribe la respuesta de la escritura de la data
+     *
+     * Intereses:
+     *    - OP_WRITE sobre client_fd
+     *
+     * Transiciones:
+     *    - WAITING_MAIL_FROM cuando se completa la respuesta
+     *    - ERROR             ante cualquier error
+     */
+    RESPONSE_DATA_WRITE,
+    /**
+     * cierra la conexión
+     *
+     * Intereses:
+     *    - NINGUNO
+     *
+     * Transiciones:
+     *    - NINGUNA
+     */
+    QUIT,
     // estados terminales
     DONE,
     ERROR,
@@ -198,6 +226,14 @@ static void save_response(struct smtp *state, char *message) {
 }
 
 static bool request_process(struct smtp *state, unsigned current_state) {
+    // chequeo primero si coincide con QUIT y si esta vacio el argumento
+
+    if (strcasecmp(state->request_parser.request->verb, "QUIT") == 0
+        && (strlen(state->request_parser.request->arg1) == 0)) {
+        save_response(state, "221 Bye\n");
+        return false;
+    }
+
     switch (current_state) {
         case WAITING_EHLO:
             if (strcasecmp(state->request_parser.request->verb, "EHLO") == 0 ||
@@ -260,7 +296,7 @@ request_read2(struct selector_key *key, struct smtp *state, unsigned current_sta
             if (request_process(state, current_state))
                 return next_state;
             else
-                return ERROR;
+                return QUIT;
         } else {
             return ERROR;
         }
@@ -288,50 +324,24 @@ static unsigned request_read(struct selector_key *key, unsigned current_state, u
     }
 }
 
-static unsigned int data_read2(struct selector_key *key, struct smtp *state) {
-    unsigned ret = DATA_READ;
-    enum data_state st = state->data_parser.state;
+static unsigned read_data2(struct selector_key *key, struct smtp *state, unsigned current_state, unsigned next_state) {
+    bool error = false;
 
-    buffer *rb = &state->read_buffer;
-    buffer *wb = &state->file_buffer;
-
-    const int file = open("output_mail.txt", O_CREAT | O_WRONLY | O_APPEND, 0644);
-    if (file == -1)
-        return ERROR;
-
-    size_t count;
-    uint8_t *ptr = buffer_write_ptr(wb, &count);
-    ssize_t n = write(file, ptr, count);
-
-    while (buffer_can_read(rb)) {
-        const uint8_t c = buffer_read(rb);
-        st = data_parser_feed(&state->data_parser, c);
-        printf("DATA READ2 after data_parser_feed\n");
-        if (data_is_done(st)) {
-            break;
-        }
+    enum data_state st = data_consume(&state->read_buffer, &state->data_parser, &error);
+    if (data_is_done(st)) {
+        if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_WRITE))
+            return next_state;
+        else
+            return ERROR;
     }
-
-    if (n > 0) {
-        buffer_write_adv(wb, n);
-        if(data_is_done(st)) {
-            if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_WRITE))
-                ret = DATA_WRITE;
-            else
-                ret = DATA_READ;
-        }
-    } else {
-        ret = ERROR;
-    }
-    return ret;
+    return DATA_READ;
 }
 
-static unsigned data_read(struct selector_key *key) {
-    unsigned ret;
+static unsigned read_data(struct selector_key *key, unsigned current_state, unsigned next_state) {
     struct smtp *state = ATTACHMENT(key);
 
     if (buffer_can_read(&state->read_buffer)) {
-        ret = data_read2(key, state);
+        return read_data2(key, state, current_state, next_state);
     } else {
         size_t count;
         uint8_t *ptr = buffer_write_ptr(&state->read_buffer, &count);
@@ -339,17 +349,15 @@ static unsigned data_read(struct selector_key *key) {
 
         if (n > 0) {
             buffer_write_adv(&state->read_buffer, n);
-            ret = data_read2(key, state);
+            return read_data2(key, state, current_state, next_state);
         } else {
-            ret = ERROR;
+            return ERROR;
         }
     }
-    return ret;
 }
 
 static unsigned response_write(struct selector_key *key, unsigned current_state, unsigned next_state) {
     unsigned ret = current_state;
-    bool error = false;
 
     size_t count;
     buffer *wb = &ATTACHMENT(key)->write_buffer;
@@ -372,20 +380,42 @@ static unsigned response_write(struct selector_key *key, unsigned current_state,
     return ret;
 }
 
-static unsigned data_write(struct selector_key *key) {
-    return ERROR;
+
+static unsigned welcome(struct selector_key *key) {
+    return response_write(key, WELCOME, WAITING_EHLO);
 }
 
 static unsigned waiting_ehlo(struct selector_key *key) {
     return request_read(key, WAITING_EHLO, RESPONSE_EHLO);
 }
 
+static unsigned response_ehlo(struct selector_key *key) {
+    if (response_write(key, RESPONSE_EHLO, WAITING_MAIL_FROM) == WAITING_MAIL_FROM
+        && ATTACHMENT(key)->go_to_next)
+        return WAITING_MAIL_FROM;
+    return WAITING_EHLO;
+}
+
 static unsigned waiting_mail_from(struct selector_key *key) {
     return request_read(key, WAITING_MAIL_FROM, RESPONSE_MAIL_FROM);
 }
 
+static unsigned response_mail_from(struct selector_key *key) {
+    if (response_write(key, RESPONSE_MAIL_FROM, WAITING_RCPT_TO) == WAITING_RCPT_TO
+        && ATTACHMENT(key)->go_to_next)
+        return WAITING_RCPT_TO;
+    return WAITING_MAIL_FROM;
+}
+
 static unsigned waiting_rcpt_to(struct selector_key *key) {
     return request_read(key, WAITING_RCPT_TO, RESPONSE_RCPT_TO);
+}
+
+static unsigned response_rcpt_to(struct selector_key *key) {
+    if (response_write(key, RESPONSE_RCPT_TO, WAITING_DATA) == WAITING_DATA
+        && ATTACHMENT(key)->go_to_next)
+        return WAITING_DATA;
+    return WAITING_RCPT_TO;
 }
 
 static unsigned waiting_data(struct selector_key *key) {
@@ -396,36 +426,53 @@ static unsigned waiting_data(struct selector_key *key) {
     return ret;
 }
 
-static unsigned welcome(struct selector_key *key) {
-    return response_write(key, WELCOME, WAITING_EHLO);
-}
-
-static unsigned response_ehlo(struct selector_key *key) {
-    if (response_write(key, RESPONSE_EHLO, WAITING_MAIL_FROM) == WAITING_MAIL_FROM
-        && ATTACHMENT(key)->go_to_next)
-        return WAITING_MAIL_FROM;
-    return WAITING_EHLO;
-}
-
-static unsigned response_mail_from(struct selector_key *key) {
-    if (response_write(key, RESPONSE_MAIL_FROM, WAITING_RCPT_TO) == WAITING_RCPT_TO
-        && ATTACHMENT(key)->go_to_next)
-        return WAITING_RCPT_TO;
-    return WAITING_MAIL_FROM;
-}
-
-static unsigned response_rcpt_to(struct selector_key *key) {
-    if (response_write(key, RESPONSE_RCPT_TO, WAITING_DATA) == WAITING_DATA
-        && ATTACHMENT(key)->go_to_next)
-        return WAITING_DATA;
-    return WAITING_RCPT_TO;
-}
-
 static unsigned response_data(struct selector_key *key) {
     if (response_write(key, RESPONSE_DATA, DATA_READ) == DATA_READ
         && ATTACHMENT(key)->go_to_next)
         return DATA_READ;
     return WAITING_DATA;
+}
+
+static unsigned data_read(struct selector_key *key) {
+    return read_data(key, DATA_READ, DATA_WRITE);
+}
+
+static unsigned data_write(struct selector_key *key) {
+    struct smtp *state = ATTACHMENT(key);
+
+    //quiero abrir un archivo pero que si ya existe lo sobreescriba
+    //state->file_fd = open("output_mail.txt", O_CREAT | O_WRONLY | O_APPEND, 0644);
+    state->file_fd = open(state->mail_to, O_CREAT | O_WRONLY | O_TRUNC, 0666);
+    if (state->file_fd == -1) return ERROR;
+
+    size_t count;
+    uint8_t *ptr = buffer_read_ptr(&state->data_parser.output_buffer, &count);
+    ssize_t n = write(state->file_fd, ptr, count);
+
+    if (n >= 0) {
+        buffer_read_adv(&state->data_parser.output_buffer, n);
+        if (data_is_done(state->data_parser.state)) {
+            if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_WRITE))
+                return RESPONSE_DATA_WRITE;
+            else
+                return DATA_READ;
+        }
+    } else {
+        return ERROR;
+    }
+    return DATA_WRITE;
+}
+
+static unsigned response_data_write(struct selector_key *key) {
+    if (response_write(key, RESPONSE_DATA_WRITE, WAITING_MAIL_FROM) == WAITING_MAIL_FROM)
+        return WAITING_MAIL_FROM;
+    return ERROR;
+}
+
+static unsigned quit(struct selector_key *key) {
+    if (response_write(key, QUIT, DONE) == DONE)
+        return DONE;
+    return ERROR;
 }
 
 /** definición de handlers para cada estado */
@@ -479,6 +526,14 @@ static const struct state_definition client_statbl[] = {
         {
                 .state            = DATA_WRITE,
                 .on_write_ready   = data_write,
+        },
+        {
+                .state            = RESPONSE_DATA_WRITE,
+                .on_write_ready   = response_data_write,
+        },
+        {
+                .state            = QUIT,
+                .on_write_ready   = quit,
         },
         {
                 .state = DONE,
@@ -562,6 +617,9 @@ static void smtp_close(struct selector_key *key) {
     /*
     socks5_destroy(ATTACHMENT(key));
      */
+    if (ATTACHMENT(key)->file_fd != -1) {
+        close(ATTACHMENT(key)->file_fd);
+    }
     smtp_destroy(ATTACHMENT(key));
 }
 
@@ -589,6 +647,7 @@ void smtp_passive_accept(struct selector_key *key) {
     memcpy(&state->client_addr, &client_addr, client_addr_len);
     state->client_addr_len = client_addr_len;
 
+    state->file_fd = -1;
     state->stm.initial = WELCOME;
     state->stm.max_state = ERROR;
     state->stm.states = client_statbl;
