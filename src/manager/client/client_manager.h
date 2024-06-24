@@ -1,0 +1,12 @@
+#ifndef CLIENT_MANAGER_H
+#define CLIENT_MANAGER_H
+
+#define SIGNATURE 0xCAFE
+#define VERSION 0x00
+#define USER 0xC0DAC0DA
+#define PASS 0x5EC8E700
+
+#define REQUEST_SIZE 14
+#define RESPONSE_SIZE 14
+
+#endif //CLIENT_MANAGER_H
