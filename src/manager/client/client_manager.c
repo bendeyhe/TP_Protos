@@ -81,29 +81,21 @@ enum status {
     SAVED_FOR_FUTURE_USE = 0x06
 };
 
-void init_buffer(char *buffer, uint8_t cmd) {
+void init_buffer(char *buffer, uint8_t cmd,  char * password) {
     uint16_t signature = htons(SIGNATURE);
 
     static u_int16_t request_id = 0;
     request_id++;
     request_id = htons(request_id);
     uint16_t net_request_id = htons(request_id);
-    uint32_t user = htonl(USER);
-    uint32_t pass = htonl(PASS);
+
 
     buffer[0] = (signature >> 8) & 0xFF;
     buffer[1] = signature & 0xFF;
     buffer[2] = VERSION;
     buffer[3] = (net_request_id >> 8) & 0xFF;
     buffer[4] = net_request_id & 0xFF;
-    buffer[5] = (user >> 24) & 0xFF;
-    buffer[6] = (user >> 16) & 0xFF;
-    buffer[7] = (user >> 8) & 0xFF;
-    buffer[8] = user & 0xFF;
-    buffer[9] = (pass >> 24) & 0xFF;
-    buffer[10] = (pass >> 16) & 0xFF;
-    buffer[11] = (pass >> 8) & 0xFF;
-    buffer[12] = pass & 0xFF;
+    memcpy(&buffer[5], password, 8);
     buffer[13] = cmd;
 }
 
@@ -191,14 +183,20 @@ void print_response(uint8_t *response, uint8_t cmd) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc < 4 || argc > 4) {
-        fprintf(stderr, "Usage: %s [HOST] [PORT] [COMMAND]\n", argv[0]);
+    if (argc != 5) {
+        fprintf(stderr, "Usage: %s [HOST] [PASSWORD] [PORT] [COMMAND]\n", argv[0]);
         return 1;
     }
 
     const char *host = argv[1];
-    const char *port = argv[2];
-    const char *command = argv[3];
+    char *password = argv[2];
+    const char *port = argv[3];
+    const char *command = argv[4];
+
+    if (strlen(password) != 8) {
+        fprintf(stderr, "Invalid password\n");
+        return 1;
+    }
 
     uint8_t cmd = get_command(command);
 
@@ -207,14 +205,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    uint8_t buffer[REQUEST_SIZE];
+    init_buffer((char *) buffer, cmd, password);
     // si el comando es HELP no envio nada
     if (cmd == HELP) {
         print_response(buffer, cmd);
         return 0;
     }
 
-    uint8_t buffer[REQUEST_SIZE];
-    init_buffer((char *) buffer, cmd);
 
     struct sockaddr_in6 addr;
     memset(&addr, 0, sizeof(addr));

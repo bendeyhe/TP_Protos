@@ -45,7 +45,7 @@ void manager_passive_accept2(struct selector_key *key) {
     // armar el datagrama con la informacion del cliente
     // y enviarlo al selector para que lo maneje
 
-
+    char buff[REQUEST_SIZE];
     struct sockaddr_storage client_addr;
     socklen_t client_addr_len = sizeof(client_addr);
     ssize_t rcv = recvfrom(key->fd, buff, sizeof(buff) - 1, 0, (struct sockaddr *) &client_addr, &client_addr_len);
@@ -74,15 +74,14 @@ void manager_passive_accept2(struct selector_key *key) {
         response_buffer[5]=INVALID_VERSION;
         goto send_datagram;
     }
-    uint32_t user, pass;
-    memcpy(&user, &buff[5], 4);
-    memcpy(&pass, &buff[9], 4);
-    user = ntohl(user);
-    pass = ntohl(pass);
-    if (user != USER || pass != PASS) {
+    char password[8];
+    memcpy(password, &buff[5], 8);
+
+    if (strncmp((char *) password, (char *)key->data, 8) != 0) {
         response_buffer[5]=UNAUTHORIZED;
         goto send_datagram;
     }
+
 
     unsigned char command = buff[13];
     size_t data;
