@@ -143,7 +143,7 @@ int main(const int argc, char **argv) {
             .handle_close      = NULL, // nada que liberar
     };
 
-    ss = selector_register(selector, server, &smtp, OP_READ, NULL);
+    ss = selector_register(selector, server, &smtp, OP_READ, args.transformations);
     if (ss != SELECTOR_SUCCESS) {
         err_msg = "registering fd";
         goto finally;

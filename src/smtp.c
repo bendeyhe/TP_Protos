@@ -20,6 +20,7 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <sys/time.h>
+#include <sys/wait.h>
 
 #define MAIL_FOLDER "maildir"
 
@@ -59,6 +60,13 @@ struct smtp {
     int mail_to_index;
     int file_fd;
 };
+
+struct transformation{
+    bool enabled;
+    char * program;
+};
+
+struct transformations tac = {.enabled = true, .program = "tac"};
 
 /** maquina de estados general */
 enum smtp_state {
@@ -218,6 +226,25 @@ enum smtp_state {
     DONE,
     ERROR,
 };
+
+int _pipe(int fildes[2]) {
+    int ret = pipe(fildes);
+    if (ret != 0) {
+        perror("Error while creating pipe");
+        exit(EXIT_FAILURE);
+    }
+    return ret;
+}
+
+int _fork() {
+    int pid = fork();
+    if (pid < 0) {
+        perror("Error while creating slave");
+        exit(EXIT_FAILURE);
+    }
+    return pid;
+}
+
 
 static bool valid_mail_address(char *mail) {
     size_t required_domain_length = strlen(DOMAIN);
@@ -687,7 +714,7 @@ static unsigned data_write(struct selector_key *key) {
         strcat(to_send, date_formatted);
         strcat(to_send, "\r\n");
 
-        // Open log.txt and write the desired information
+        // Open log.txt and write the information
         int log_fd = open("log.txt", O_CREAT | O_WRONLY | O_APPEND, 0777);
         if (log_fd == -1) {
             perror("open log.txt");
@@ -712,6 +739,35 @@ static unsigned data_write(struct selector_key *key) {
     }
 
     ssize_t n = write(state->file_fd, ptr, count);
+
+    if (tac.enabled) {
+
+        int writefds[2];
+
+        _pipe(writefds);
+
+        int pid = _fork();
+        if (pid == 0) {
+            // Child
+            // cambiar la salida estandar para que sea el pipe
+            close(STDIN_FILENO);
+            dup(writefds[0]);
+            close(STDOUT_FILENO);
+            dup(file);
+
+            close(writefds[0]);
+            close(writefds[1]);
+
+            execl(tac.program, tac.program, (char *) NULL);
+            perror("Error while creating slave");
+            exit(EXIT_FAILURE);
+        }
+
+        // Father
+        close(writefds[0]);
+        close(file);
+        state->file_fd = writefds[1];
+    }
 
     if (n >= 0) {
         buffer_read_adv(&state->data_parser.output_buffer, n);
@@ -905,6 +961,8 @@ void smtp_passive_accept(struct selector_key *key) {
     state->mail_to_index = 0;
     state->stm.max_state = ERROR;
     state->stm.states = client_statbl;
+    tac.program = (char *) key->data;
+    tac.transformations = key->data != NULL ? true : false;
     stm_init(&state->stm);
 
     buffer_init(&state->read_buffer, N(state->raw_buff_read), state->raw_buff_read);

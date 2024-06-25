@@ -72,6 +72,7 @@ parse_args(const int argc, char **argv, struct smtpargs *args) {
     args->mng_port = 7374;
 
     args->disectors_enabled = true;
+    args->transformations = "tac";
 
     int c;
     int nusers = 0;
