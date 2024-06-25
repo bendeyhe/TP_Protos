@@ -5,4 +5,6 @@
 
 void smtp_passive_accept(struct selector_key *key);
 
+void init_transformations(char *program);
+
 #endif //TP_PROTOS_SMTP_H

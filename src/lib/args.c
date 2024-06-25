@@ -41,6 +41,7 @@ usage(const char *progname) {
             "   -p <SMTP port>   Puerto entrante conexiones SMTP.\n"
             "   -P <conf port>   Puerto entrante conexiones configuracion\n"
             "   -u <password>    Password para rol de administrador, 8 caracteres.\n"
+            "   -T <program>     Prende las transformaciones con el programa indicado.\n"
             "   -v               Imprime información sobre la versión versión y termina.\n"
             "\n",
             progname);
@@ -58,7 +59,6 @@ parse_args(const int argc, char **argv, struct smtpargs *args) {
     args->mng_port = 7374;
 
     args->disectors_enabled = true;
-    args->transformations = "tac";
 
     args->password = "password";
 
@@ -70,7 +70,7 @@ parse_args(const int argc, char **argv, struct smtpargs *args) {
                 {0, 0, 0, 0}
         };
 
-        c = getopt_long(argc, argv, "hl:L:Np:P:u:v", long_options, &option_index);
+        c = getopt_long(argc, argv, "hl:L:Np:P:u:vT:", long_options, &option_index);
         if (c == -1)
             break;
 
@@ -80,6 +80,9 @@ parse_args(const int argc, char **argv, struct smtpargs *args) {
                 break;
             case 'l':
                 args->smtp_addr = optarg;
+                break;
+            case 'T':
+                args->transformations = optarg;
                 break;
             case 'L':
                 args->mng_addr = optarg;

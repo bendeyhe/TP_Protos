@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <sys/time.h>
 #include <sys/wait.h>
+#include <unistd.h>
 
 #define MAIL_FOLDER "maildir"
 
@@ -59,14 +60,15 @@ struct smtp {
     char **mail_to;
     int mail_to_index;
     int file_fd;
+    int sock_fd;
 };
 
-struct transformation{
+struct tr {
     bool enabled;
-    char * program;
+    char *program;
 };
 
-struct transformations tac = {.enabled = true, .program = "tac"};
+struct tr transformations = {false, NULL};
 
 /** maquina de estados general */
 enum smtp_state {
@@ -626,6 +628,8 @@ static unsigned data_write(struct selector_key *key) {
     size_t count;
     uint8_t *ptr = buffer_read_ptr(&state->data_parser.output_buffer, &count);
 
+    int file = 0;
+
     for (int i = 0; i < state->mail_to_index; i++) {
         char p[DOMAIN_NAME_SIZE];
 
@@ -699,8 +703,15 @@ static unsigned data_write(struct selector_key *key) {
         strcat(p, date);
         strcat(p, ".txt");
 
-        state->file_fd = open(p, O_CREAT | O_WRONLY | O_APPEND, 0777);
-        if (state->file_fd == -1) return ERROR;
+        file = open(p, O_CREAT | O_WRONLY | O_APPEND, 0777);
+        if (file == -1) {
+            perror("open");
+            return ERROR;
+        }
+        state->file_fd = file;
+
+
+        state->sock_fd = key->fd;
 
         char to_send[DOMAIN_NAME_SIZE + 80] = "From ";
         strcat(to_send, state->mail_from);
@@ -740,7 +751,7 @@ static unsigned data_write(struct selector_key *key) {
 
     ssize_t n = write(state->file_fd, ptr, count);
 
-    if (tac.enabled) {
+    if (transformations.enabled) {
 
         int writefds[2];
 
@@ -758,7 +769,7 @@ static unsigned data_write(struct selector_key *key) {
             close(writefds[0]);
             close(writefds[1]);
 
-            execl(tac.program, tac.program, (char *) NULL);
+            execl(transformations.program, transformations.program, NULL);
             perror("Error while creating slave");
             exit(EXIT_FAILURE);
         }
@@ -794,7 +805,7 @@ static unsigned response_data_write(struct selector_key *key) {
 static unsigned quit(struct selector_key *key) {
     if (response_write(key, QUIT, DONE) == DONE)
         return DONE;
-    return ERROR;
+    return DONE;
 }
 
 /** definición de handlers para cada estado */
@@ -922,10 +933,45 @@ static void smtp_destroy(struct smtp *state) {
 }
 
 static void smtp_close(struct selector_key *key) {
+    struct smtp *state = ATTACHMENT(key);
     if (ATTACHMENT(key)->file_fd != -1) {
         close(ATTACHMENT(key)->file_fd);
     }
+    // paso todo lo que estaba en carpetas maildir/user/tmp a maildir/user/new
+    for (int i = 0; i < state->mail_to_index; i++) {
+        char p[DOMAIN_NAME_SIZE];
+        strcpy(p, MAIL_FOLDER);
+        strcat(p, "/");
+        strcat(p, state->mail_to[i]);
+        strcat(p, "/tmp");
+        DIR *dir = opendir(p);
+        if (dir == NULL) {
+            perror("opendir");
+            return;
+        }
+        struct dirent *entry;
+        while ((entry = readdir(dir)) != NULL) {
+            if (entry->d_type == DT_REG) {
+                char from[DOMAIN_NAME_SIZE];
+                strcpy(from, p);
+                strcat(from, "/");
+                strcat(from, entry->d_name);
+                strcpy(p, MAIL_FOLDER);
+                strcat(p, "/");
+                strcat(p, state->mail_to[i]);
+                strcat(p, "/new/");
+                strcat(p, entry->d_name);
+                if (rename(from, p) == -1) {
+                    perror("rename");
+                    return;
+                }
+            }
+        }
+        closedir(dir);
+    }
+
     userDisconnection();
+    printf("desconectado\n");
     smtp_destroy(ATTACHMENT(key));
 }
 
@@ -961,8 +1007,6 @@ void smtp_passive_accept(struct selector_key *key) {
     state->mail_to_index = 0;
     state->stm.max_state = ERROR;
     state->stm.states = client_statbl;
-    tac.program = (char *) key->data;
-    tac.transformations = key->data != NULL ? true : false;
     stm_init(&state->stm);
 
     buffer_init(&state->read_buffer, N(state->raw_buff_read), state->raw_buff_read);
@@ -988,4 +1032,12 @@ void smtp_passive_accept(struct selector_key *key) {
         close(client);
     }
     smtp_destroy(state);
+}
+
+void init_transformations(char *program) {
+    transformations.program = program;
+    if (transformations.program != NULL)
+        transformations.enabled = true;
+    else
+        transformations.enabled = false;
 }

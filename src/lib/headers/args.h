@@ -21,6 +21,8 @@ struct smtpargs {
 
     bool disectors_enabled;
 
+    char *transformations;
+
     char * password;
 };
 

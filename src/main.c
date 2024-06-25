@@ -54,6 +54,7 @@ int main(const int argc, char **argv) {
     selector_status ss2 = SELECTOR_SUCCESS;
     fd_selector selector = NULL;
 
+    init_transformations(args.transformations);
     statsInit();
 
     struct sockaddr_in6 addr;
