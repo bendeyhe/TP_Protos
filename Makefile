@@ -56,10 +56,10 @@ obj/manager/client/%.o: src/manager/client/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	- rm -rf $(OUTPUT_FOLDER) $(OBJ_FOLDER)
+	- rm -rf $(OUTPUT_FOLDER) $(OBJ_FOLDER) src/test/*.o stress_test
 
 stress: src/test/stress_test.o
 	$(CC) $(CFLAGS) -o $@ $^
 
 stress_test: stress
-	./stress_test
+	./stress

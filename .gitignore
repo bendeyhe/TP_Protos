@@ -26,3 +26,5 @@ log.txt
 
 # Ignorar carpeta de mails
 maildir/
+stress_test
+stress

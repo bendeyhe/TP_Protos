@@ -54,8 +54,8 @@ void *send_email(void *threadid) {
             "MAIL FROM:<sender@mydomain.com>\r\n"
             "RCPT TO:<recipient1@mydomain.com>\r\n"
             "DATA\r\n"
-            "From: sender@example.com\r\n"
-            "To: recipient@example.com\r\n"
+            "From: sender@mydomain.com\r\n"
+            "To: recipient@mydomain.com\r\n"
             "Subject: Test Email\r\n"
             "\r\n"
             "This is a test email 2.\r\n"
@@ -88,6 +88,7 @@ void *send_email(void *threadid) {
     }
     buffer[n] = '\0'; // Null-terminate the received string
     printf("Server response 2: %s\n", buffer);
+    printf("Thread #%ld completed\n", tid);
 
     // Close connection
     close(sockfd);
@@ -116,6 +117,6 @@ int main() {
         pthread_join(threads[t], NULL);
     }
 
-    printf("SMTP Stress Test Completed.\n");
+    printf("SMTP Stress Test Completed with %d threads.\n", NUM_THREADS);
     return 0;
 }
