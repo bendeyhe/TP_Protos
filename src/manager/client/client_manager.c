@@ -121,10 +121,6 @@ bool check_response(uint8_t *response) {
     uint8_t version = response[2];
     uint8_t status = response[5];
 
-    printf("Signature: %04X\n", signature);
-    printf("SIGNATURE: %04X\n", SIGNATURE);
-    printf("ntohs(signature): %04X\n", ntohs(signature));
-
     if (ntohs(signature) != SIGNATURE || version != VERSION) {
         return false;
     }

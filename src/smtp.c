@@ -1013,7 +1013,6 @@ static void smtp_close(struct selector_key *key) {
     }
     move_files(MAIL_FOLDER);
     userDisconnection();
-    printf("desconectado\n");
     smtp_destroy(ATTACHMENT(key));
 }
 
