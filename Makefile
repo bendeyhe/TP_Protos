@@ -56,7 +56,7 @@ obj/manager/client/%.o: src/manager/client/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
 clean:
-	- rm -rf $(OUTPUT_FOLDER) $(OBJ_FOLDER) src/test/*.o stress_test
+	- rm -rf $(OUTPUT_FOLDER) $(OBJ_FOLDER) src/test/*.o stress_test stress smtpd client
 
 stress: src/test/stress_test.o
 	$(CC) $(CFLAGS) -o $@ $^
