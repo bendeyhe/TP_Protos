@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 #include "headers/data.h"
+#include "headers/buffer.h"
 
 #define N(x) (sizeof(x)/sizeof((x)[0]))
 
@@ -140,5 +141,5 @@ extern enum data_state data_consume(buffer *b, struct data_parser *p, bool *erro
 }
 
 extern void data_close(struct data_parser *p) {
-    // nada que hacer
+
 }

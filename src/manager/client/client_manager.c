@@ -185,6 +185,7 @@ void print_response(uint8_t *response, uint8_t cmd) {
             printf("- BY_SE      Get bytes sent\n");
             printf("- BY_RE      Get bytes received\n");
             printf("- AL_BY      Get all bytes\n");
+            printf("- HELP       Show this help\n");
             break;
     }
 }
@@ -206,16 +207,19 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // si el comando es HELP no envio nada
+    if (cmd == HELP) {
+        print_response(buffer, cmd);
+        return 0;
+    }
+
     uint8_t buffer[REQUEST_SIZE];
     init_buffer((char *) buffer, cmd);
 
     struct sockaddr_in6 addr;
     memset(&addr, 0, sizeof(addr));
     addr.sin6_family = AF_INET6;
-    if(inet_pton(AF_INET6, host, &addr.sin6_addr) != 1){
-        perror("inet_pton");
-        return 1;
-    }
+    inet_pton(AF_INET6, host, &addr.sin6_addr);
     addr.sin6_port = htons(atoi(port));
 
     const int client = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
@@ -228,7 +232,7 @@ int main(int argc, char *argv[]) {
     setsockopt(client, SOL_SOCKET, SO_REUSEADDR, &(int) {1}, sizeof(int));
     setsockopt(client, IPPROTO_IPV6, IPV6_V6ONLY, &(int) {0}, sizeof(int));
 
-    struct timeval tv = {5, 0};
+    struct timeval tv = {1, 0};
     setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const char *) &tv, sizeof(struct timeval));
 
     ssize_t num_bytes = sendto(client, buffer, REQUEST_SIZE, 0, (struct sockaddr *) &addr, sizeof(addr));

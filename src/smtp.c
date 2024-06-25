@@ -17,8 +17,13 @@
 #include "lib/headers/stats.h"
 #include <fcntl.h>
 #include <sys/stat.h>
+#include <ctype.h>
 
 #define N(x) (sizeof(x)/sizeof(x[0]))
+#define MIN(a, b) (((a)<(b))?(a):(b))
+#define MAX_RCPT_TO 2
+#define DOMAIN_NAME_SIZE 255
+#define BUFFER_SIZE 2048
 
 // TODO USAR MIN PARA ESCRIBIR EN LOS BUFFERS!!
 
@@ -39,13 +44,14 @@ struct smtp {
     struct data_parser data_parser;
 
     /** buffers */
-    uint8_t raw_buff_read[2048], raw_buff_write[2048], raw_buff_file[2048]; // TODO: TENEMOS QUE ARREGLAR ESTO!!!
+    uint8_t raw_buff_read[BUFFER_SIZE], raw_buff_write[BUFFER_SIZE], raw_buff_file[BUFFER_SIZE];
     buffer read_buffer, write_buffer, file_buffer;
 
     bool go_to_next;
     bool go_to_rcpt_to;
-    char mail_from[255];
-    char mail_to[255];
+    char mail_from[DOMAIN_NAME_SIZE];
+    char mail_to[MAX_RCPT_TO][DOMAIN_NAME_SIZE];
+    int mail_to_index;
     int file_fd;
 };
 
@@ -216,8 +222,9 @@ static void request_read_init(const unsigned s, struct selector_key *key) {
     request_parser_init(p);
 }
 
-static void request_read_close(const unsigned state, struct selector_key *key) {
-    request_close(&ATTACHMENT(key)->request_parser);
+static void data_read_init(const unsigned s, struct selector_key *key) {
+    struct data_parser *p = &ATTACHMENT(key)->data_parser;
+    data_parser_init(p);
 }
 
 static void save_response(struct smtp *state, char *message) {
@@ -225,13 +232,12 @@ static void save_response(struct smtp *state, char *message) {
     uint8_t *ptr;
     ptr = buffer_write_ptr(&state->write_buffer, &count);
 
-    strcpy((char *) ptr, message);
-    buffer_write_adv(&state->write_buffer, strlen(message));
+    const size_t len = MIN(strlen(message), count);
+    strncpy((char *) ptr, message, len);
+    buffer_write_adv(&state->write_buffer, len);
 }
 
 static bool request_process(struct smtp *state, unsigned current_state) {
-    // chequeo primero si coincide con QUIT y si esta vacio el argumento
-
     if (strcasecmp(state->request_parser.request->verb, "QUIT") == 0
         && (strlen(state->request_parser.request->arg1) == 0)) {
         save_response(state, "221 Bye\n");
@@ -245,42 +251,57 @@ static bool request_process(struct smtp *state, unsigned current_state) {
                 save_response(state, "250 server at your service\n");
                 state->go_to_next = true;
             } else {
-                save_response(state, "EHLO/HELO first is expected!\r\n");
+                save_response(state, "EHLO/HELO first is expected!\n");
             }
             break;
         case WAITING_MAIL_FROM:
             if (strcasecmp(state->request_parser.request->verb, "MAIL FROM") == 0) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
                 strcpy(state->mail_from, state->request_parser.request->arg1);
-                save_response(state,
-                              "250 OK - MAIL FROM: <mail_from>\r\n"); // TODO borrar despues el - MAIL FROM: <mail_from>
+                save_response(state, "250 OK\n");
                 state->go_to_next = true;
             } else {
-                save_response(state, "Bad sequence of commands! MAIL FROM: is expected\r\n");
+                save_response(state, "Bad sequence of commands! MAIL FROM: is expected\n");
             }
             break;
         case WAITING_RCPT_TO:
             if (strcasecmp(state->request_parser.request->verb, "RCPT TO") == 0) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
-                strcpy(state->mail_to, state->request_parser.request->arg1);
-                save_response(state, "250 OK - RCPT TO: <mail_to>\r\n"); // TODO borrar despues el - RCPT TO: <mail_to>
+                state->mail_to_index = 0;
+                strcpy(state->mail_to[state->mail_to_index], state->request_parser.request->arg1);
+                save_response(state, "250 OK\n");
                 state->go_to_next = true;
             } else {
-                save_response(state, "Bad sequence of commands! RCPT TO: is expected\r\n");
+                save_response(state, "Bad sequence of commands! RCPT TO: is expected\n");
             }
             break;
         case WAITING_DATA:
             if (strcasecmp(state->request_parser.request->verb, "DATA") == 0) {
-                save_response(state, "354 Start mail input; end with <CRLF>.<CRLF>\r\n");
+                save_response(state, "354 Start mail input; end with <CRLF>.<CRLF>\n");
                 state->go_to_next = true;
             } else if (strcasecmp(state->request_parser.request->verb, "RCPT TO") == 0) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
-                strcpy(state->mail_to, state->request_parser.request->arg1);
-                save_response(state, "250 OK - RCPT TO: <mail_to>\r\n"); // TODO borrar despues el - RCPT TO
+                for (int i = 0; i <= state->mail_to_index && i < MAX_RCPT_TO; i++) {
+                    if (strcmp(state->mail_to[i], state->request_parser.request->arg1) == 0) {
+                        save_response(state, "recipient already added\n");
+                        state->go_to_rcpt_to = true;
+                        state->go_to_next = true;
+                        return true;
+                    }
+                    if (i == MAX_RCPT_TO - 1) {
+                        save_response(state, "Maximum number of recipients reached\n");
+                        state->go_to_rcpt_to = true;
+                        state->go_to_next = true;
+                        return true;
+                    }
+                }
+                state->mail_to_index++;
+                strcpy(state->mail_to[state->mail_to_index], state->request_parser.request->arg1);
+                save_response(state, "250 OK\n");
                 state->go_to_rcpt_to = true;
                 state->go_to_next = true;
             } else {
-                save_response(state, "Bad sequence of commands! DATA is expected\r\n");
+                save_response(state, "Bad sequence of commands! DATA is expected\n");
             }
             break;
         default:
@@ -450,33 +471,113 @@ static unsigned data_read(struct selector_key *key) {
 static unsigned data_write(struct selector_key *key) {
     struct smtp *state = ATTACHMENT(key);
 
-    // implementacion de mailbox
-    // si no tiene carpeta, la crea
-    struct stat mail_stat = {0};
-    if(-1 == stat("mails", &mail_stat)) {
-        if(-1 == mkdir("mails", 0777)) {
+    if (mkdir("mbox", 0777) == -1) {
+        if (errno != EEXIST) {
+            perror("mkdir");
             return ERROR;
         }
     }
-
-    char name[128] = "mails/";
-    strcat(name, state->mail_to);
-    strcat(name, ".txt");
-
-    state->file_fd = open(name, O_CREAT | O_WRONLY | O_APPEND, 0777);
-    if (state->file_fd == -1) return ERROR;
 
     size_t count;
     uint8_t *ptr = buffer_read_ptr(&state->data_parser.output_buffer, &count);
     ssize_t n = write(state->file_fd, ptr, count);
 
+    char filename[DOMAIN_NAME_SIZE + 10] = "mbox/";
+
+    for (int i = 0; i <= state->mail_to_index; i++) {
+        // si mail_to tiene espacio, lo reemplazo por _
+        char p[DOMAIN_NAME_SIZE];
+        strcpy(p, state->mail_to[i]);
+
+        // Elimina los espacios al principio
+        int j = 0;
+        while (isspace(p[j])) {
+            j++;
+        }
+        memmove(p, p + j, strlen(p) - j + 1);
+
+        char *pos = p;
+
+        while ((pos = strchr(pos, ' ')) != NULL) {
+            *pos = '_';
+            pos++;
+        }
+        // vuelvo a inicializar filename
+        strcpy(filename, "mbox/");
+        strcat(filename, p);
+        strcat(filename, ".txt");
+
+        state->file_fd = open(filename, O_CREAT | O_WRONLY | O_APPEND, 0777);
+        if (state->file_fd == -1) return ERROR;
+
+        // Escribo al principio del archivo el mail_from y el mail_to
+
+        char to_send[DOMAIN_NAME_SIZE * 2 + 15] = "From: ";
+        strcat(to_send, state->mail_from);
+        strcat(to_send, "\n");
+        strcat(to_send, "To: ");
+        strcat(to_send, state->mail_to[i]);
+        strcat(to_send, "\n");
+
+        if (write(state->file_fd, to_send, strlen(to_send)) == -1) return ERROR;
+        if (write(state->file_fd, ptr, count) == -1) return ERROR;
+        if (write(state->file_fd, "\n\n", 2) == -1) return ERROR;
+    }
+
+    /*
+    char filename[DOMAIN_NAME_SIZE + 10] = "mbox/";
+
+    // si mail_to tiene espacio, lo reemplazo por _
+    char p[DOMAIN_NAME_SIZE];
+    strcpy(p, state->mail_to);
+
+    // Elimina los espacios al principio
+    int i = 0;
+    while (isspace(p[i])) {
+        i++;
+    }
+    memmove(p, p + i, strlen(p) - i + 1);
+
+    printf("Mail to: %s\n", p);
+
+    char *pos = p;
+
+    while ((pos = strchr(pos, ' ')) != NULL) {
+        *pos = '_'; // Reemplaza el espacio por '_'
+        pos++; // Avanza pos al siguiente carácter después del '_'
+    }
+    strcat(filename, p);
+    strcat(filename, ".txt");
+
+    printf("Nombre del archivo: %s\n", filename);
+
+    state->file_fd = open(filename, O_CREAT | O_WRONLY | O_APPEND, 0777);
+    if (state->file_fd == -1) return ERROR;
+
+    // Escribo al principio del archivo el mail_from y el mail_to
+
+    char to_send[DOMAIN_NAME_SIZE * 2 + 15] = "From: ";
+    strcat(to_send, state->mail_from);
+    strcat(to_send, "\n");
+    strcat(to_send, "To: ");
+    strcat(to_send, state->mail_to);
+    strcat(to_send, "\n");
+
+    size_t count;
+    if(write(state->file_fd, to_send, strlen(to_send)) == -1) return ERROR;
+    uint8_t *ptr = buffer_read_ptr(&state->data_parser.output_buffer, &count);
+    ssize_t n = write(state->file_fd, ptr, count);
+    if(write(state->file_fd, "\n\n", 2) == -1) return ERROR;
+*/
     if (n >= 0) {
         buffer_read_adv(&state->data_parser.output_buffer, n);
         if (data_is_done(state->data_parser.state)) {
-            if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_WRITE))
+            if (SELECTOR_SUCCESS == selector_set_interest_key(key, OP_WRITE)) {
+                save_response(state, "250 OK\n");
                 return RESPONSE_DATA_WRITE;
-            else
-                return DATA_READ;
+            } else {
+                return ERROR;
+            }
         }
     } else {
         return ERROR;
@@ -505,7 +606,6 @@ static const struct state_definition client_statbl[] = {
         {
                 .state            = WAITING_EHLO,
                 .on_arrival       = request_read_init,
-                .on_departure     = request_read_close,
                 .on_read_ready    = waiting_ehlo,
         },
         {
@@ -541,7 +641,7 @@ static const struct state_definition client_statbl[] = {
         },
         {
                 .state            = DATA_READ,
-                .on_arrival       = request_read_init,
+                .on_arrival       = data_read_init,
                 .on_read_ready    = data_read,
         },
         {
@@ -614,20 +714,6 @@ static void smtp_done(struct selector_key *key) {
         }
         close(key->fd);
     }
-    /*
-    const int fds[] = {
-            ATTACHMENT(key)->client_fd,
-            ATTACHMENT(key)->origin_fd,
-    };
-    for(unsigned i = 0; i < N(fds); i++) {
-        if(fds[i] != -1) {
-            if(SELECTOR_SUCCESS != selector_unregister_fd(key->s, fds[i])) {
-                abort();
-            }
-            close(fds[i]);
-        }
-    }
-     */
 }
 
 static void smtp_destroy(struct smtp *state) {

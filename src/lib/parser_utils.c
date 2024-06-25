@@ -6,7 +6,7 @@
 
 const char *
 parser_utils_strcmpi_event(const enum string_cmp_event_types type) {
-    const char *ret;
+    const char *ret = NULL;
 
     switch (type) {
         case STRING_CMP_MAYEQ:

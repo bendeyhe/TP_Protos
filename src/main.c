@@ -138,7 +138,7 @@ int main(const int argc, char **argv) {
             .handle_close      = NULL, // nada que liberar
     };
     const struct fd_handler mng = {
-            .handle_read       = manager_passive_accept,
+            .handle_read       = manager_passive_accept2,
             .handle_write      = NULL,
             .handle_close      = NULL, // nada que liberar
     };

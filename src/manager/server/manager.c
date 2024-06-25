@@ -8,7 +8,7 @@
 
 char buff[1024];
 
-void manager_passive_accept(struct selector_key *key) {
+void manager_passive_accept2(struct selector_key *key) {
     // voy a aceptar la conexion
     // armar el datagrama con la informacion del cliente
     // y enviarlo al selector para que lo maneje
@@ -24,12 +24,8 @@ void manager_passive_accept(struct selector_key *key) {
         return;
     }
 
-    buff[rcv] = 0;
+    // aca hay que ver que comando es el que pide el cliente
 
-    //printf("Recibido: %s\n", datagram);
+    // armo el datagrama para mandar al cliente
 
-    switch (buff[0]) {
-        case 'h':
-            break;
-    }
 }

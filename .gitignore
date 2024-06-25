@@ -20,7 +20,8 @@ cmake-build-debug/
 *.iml
 
 # Ignorar ejecutable
-src/smtpd
+client
+smtpd
 
 # Ignorar carpeta de mails
-mails/
+mbox/
