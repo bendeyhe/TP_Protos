@@ -341,7 +341,6 @@ static bool request_process(struct smtp *state, unsigned current_state) {
         case WAITING_RCPT_TO:
             if (strcasecmp(state->request_parser.request->verb, "RCPT TO") == 0) {
                 if (state->mail_to_index != 0) {
-                    printf("1\n");
                     free_mail_to(state);
                     state->mail_to_index = 0;
                 }
@@ -687,6 +686,27 @@ static unsigned data_write(struct selector_key *key) {
         strftime(date_formatted, sizeof(date_formatted), " %a %b %d %H:%M:%S %Y", tm_info);
         strcat(to_send, date_formatted);
         strcat(to_send, "\r\n");
+
+        // Open log.txt and write the desired information
+        int log_fd = open("log.txt", O_CREAT | O_WRONLY | O_APPEND, 0777);
+        if (log_fd == -1) {
+            perror("open log.txt");
+            return ERROR;
+        }
+        char log_message[DOMAIN_NAME_SIZE + 100] = "from: ";
+        strcat(log_message, date_formatted);
+        strcat(log_message, " ||| ");
+        strcat(log_message, date);
+        strcat(log_message, " ||| ");
+        strcat(log_message, state->mail_from);
+
+        strcat(log_message, "\n");
+        if (write(log_fd, log_message, strlen(log_message)) == -1) {
+            perror("write to log.txt");
+            close(log_fd);
+            return ERROR;
+        }
+        close(log_fd);
 
         if (write(state->file_fd, to_send, strlen(to_send)) == -1) return ERROR;
     }
