@@ -18,12 +18,14 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <ctype.h>
+#include <stdlib.h>
 
 #define N(x) (sizeof(x)/sizeof(x[0]))
 #define MIN(a, b) (((a)<(b))?(a):(b))
 #define MAX_RCPT_TO 2
 #define DOMAIN_NAME_SIZE 255
 #define BUFFER_SIZE 2048
+#define BLOCK_SIZE 5
 
 // TODO USAR MIN PARA ESCRIBIR EN LOS BUFFERS!!
 
@@ -50,7 +52,8 @@ struct smtp {
     bool go_to_next;
     bool go_to_rcpt_to;
     char mail_from[DOMAIN_NAME_SIZE];
-    char mail_to[MAX_RCPT_TO][DOMAIN_NAME_SIZE];
+//    char mail_to[MAX_RCPT_TO][DOMAIN_NAME_SIZE];
+    char **mail_to;
     int mail_to_index;
     int file_fd;
 };
@@ -216,6 +219,22 @@ enum smtp_state {
 
 static void smtp_done(struct selector_key *key);
 
+static void free_mail_to(struct smtp *state) {
+    //free resources
+    //if mail_to_index is divisible by 5, free upto that number, if not, free up to the next multiple of 5
+    int limit;
+
+    if (state->mail_to_index % 5 == 0)
+        limit = state->mail_to_index;
+    else
+        limit = state->mail_to_index + (5 - state->mail_to_index % 5);
+    for (int i = 0; i < limit; i++) {
+        free(state->mail_to[i]);
+    }
+    free(state->mail_to);
+}
+
+
 static void request_read_init(const unsigned s, struct selector_key *key) {
     struct request_parser *p = &ATTACHMENT(key)->request_parser;
     p->request = &ATTACHMENT(key)->request;
@@ -267,10 +286,16 @@ static bool request_process(struct smtp *state, unsigned current_state) {
         case WAITING_RCPT_TO:
             if (strcasecmp(state->request_parser.request->verb, "RCPT TO") == 0) {
                 // TODO hacer que si no hay arg1 tire 'Syntax error'
-                state->mail_to_index = 0;
+                if(state->mail_to_index != 0){
+                    free_mail_to(state);
+                    state->mail_to_index = 0;
+                }
+                state->mail_to = malloc(BLOCK_SIZE * sizeof(char *));
+                state->mail_to[state->mail_to_index] = malloc(strlen(state->request_parser.request->arg1) * sizeof(char));
                 strcpy(state->mail_to[state->mail_to_index], state->request_parser.request->arg1);
                 save_response(state, "250 OK\n");
                 state->go_to_next = true;
+                state->mail_to_index++;
             } else {
                 save_response(state, "Bad sequence of commands! RCPT TO: is expected\n");
             }
@@ -295,11 +320,14 @@ static bool request_process(struct smtp *state, unsigned current_state) {
                         return true;
                     }
                 }
-                state->mail_to_index++;
-                strcpy(state->mail_to[state->mail_to_index], state->request_parser.request->arg1);
+                if(state->mail_to_index % BLOCK_SIZE == 0) {
+                    state->mail_to = realloc(state->mail_to, (state->mail_to_index + BLOCK_SIZE) * sizeof(char *));
+                }
+                state->mail_to[state->mail_to_index] = malloc(strlen(state->request_parser.request->arg1) * sizeof(char));
                 save_response(state, "250 OK\n");
                 state->go_to_rcpt_to = true;
                 state->go_to_next = true;
+                state->mail_to_index++;
             } else {
                 save_response(state, "Bad sequence of commands! DATA is expected\n");
             }
@@ -592,6 +620,9 @@ static unsigned response_data_write(struct selector_key *key) {
 }
 
 static unsigned quit(struct selector_key *key) {
+    struct smtp * state = ATTACHMENT(key);
+    free_mail_to(state);
+
     if (response_write(key, QUIT, DONE) == DONE)
         return DONE;
     return ERROR;
@@ -757,6 +788,7 @@ void smtp_passive_accept(struct selector_key *key) {
 
     state->file_fd = -1;
     state->stm.initial = WELCOME;
+    state->mail_to_index = 0;
     state->stm.max_state = ERROR;
     state->stm.states = client_statbl;
     stm_init(&state->stm);
