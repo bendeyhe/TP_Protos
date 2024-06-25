@@ -22,6 +22,8 @@
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <limits.h>
 
 #define MAIL_FOLDER "maildir"
 
@@ -932,44 +934,84 @@ static void smtp_destroy(struct smtp *state) {
     free(state);
 }
 
+void move_files(const char *base_path) {
+    struct dirent *entry;
+    char tmp_path[PATH_MAX];
+    char new_path[PATH_MAX];
+    DIR *base_dir = opendir(base_path);
+
+    if (!base_dir) {
+        perror("opendir");
+        return;
+    }
+
+    while ((entry = readdir(base_dir)) != NULL) {
+        // Construir la ruta completa para el directorio de usuario
+        snprintf(tmp_path, sizeof(tmp_path), "%s/%s", base_path, entry->d_name);
+
+        struct stat entry_stat;
+        if (stat(tmp_path, &entry_stat) == -1) {
+            perror("stat");
+            continue;
+        }
+
+        // Verificar si es un directorio y no . o ..
+        if (S_ISDIR(entry_stat.st_mode) && strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+            // Construir rutas de tmp y new
+            snprintf(tmp_path, sizeof(tmp_path), "%s/%s/tmp", base_path, entry->d_name);
+            snprintf(new_path, sizeof(new_path), "%s/%s/new", base_path, entry->d_name);
+
+            // Crear el directorio new si no existe
+            struct stat st;
+            if (stat(new_path, &st) == -1) {
+                if (mkdir(new_path, 0755) == -1) {
+                    perror("mkdir");
+                    continue;
+                }
+            }
+
+            // Abrir el directorio tmp
+            DIR *tmp_dir = opendir(tmp_path);
+            if (!tmp_dir) {
+                perror("opendir tmp");
+                continue;
+            }
+
+            struct dirent *tmp_entry;
+            while ((tmp_entry = readdir(tmp_dir)) != NULL) {
+                // Construir la ruta completa del archivo en tmp
+                char old_file_path[PATH_MAX*2];
+                snprintf(old_file_path, sizeof(old_file_path), "%s/%s", tmp_path, tmp_entry->d_name);
+
+                // Obtener información sobre la entrada
+                if (stat(old_file_path, &entry_stat) == -1) {
+                    perror("stat tmp file");
+                    continue;
+                }
+
+                // Verificar si es un archivo regular
+                if (S_ISREG(entry_stat.st_mode)) {
+                    // Construir la ruta completa del archivo en new
+                    char new_file_path[PATH_MAX*2];
+                    snprintf(new_file_path, sizeof(new_file_path), "%s/%s", new_path, tmp_entry->d_name);
+
+                    if (rename(old_file_path, new_file_path) == -1) {
+                        perror("rename");
+                    }
+                }
+            }
+            closedir(tmp_dir);
+        }
+    }
+    closedir(base_dir);
+}
+
 static void smtp_close(struct selector_key *key) {
     struct smtp *state = ATTACHMENT(key);
     if (ATTACHMENT(key)->file_fd != -1) {
         close(ATTACHMENT(key)->file_fd);
     }
-    // paso todo lo que estaba en carpetas maildir/user/tmp a maildir/user/new
-    for (int i = 0; i < state->mail_to_index; i++) {
-        char p[DOMAIN_NAME_SIZE];
-        strcpy(p, MAIL_FOLDER);
-        strcat(p, "/");
-        strcat(p, state->mail_to[i]);
-        strcat(p, "/tmp");
-        DIR *dir = opendir(p);
-        if (dir == NULL) {
-            perror("opendir");
-            return;
-        }
-        struct dirent *entry;
-        while ((entry = readdir(dir)) != NULL) {
-            if (entry->d_type == DT_REG) {
-                char from[DOMAIN_NAME_SIZE];
-                strcpy(from, p);
-                strcat(from, "/");
-                strcat(from, entry->d_name);
-                strcpy(p, MAIL_FOLDER);
-                strcat(p, "/");
-                strcat(p, state->mail_to[i]);
-                strcat(p, "/new/");
-                strcat(p, entry->d_name);
-                if (rename(from, p) == -1) {
-                    perror("rename");
-                    return;
-                }
-            }
-        }
-        closedir(dir);
-    }
-
+    move_files(MAIL_FOLDER);
     userDisconnection();
     printf("desconectado\n");
     smtp_destroy(ATTACHMENT(key));
