@@ -22,6 +22,7 @@ cmake-build-debug/
 # Ignorar ejecutable
 client
 smtpd
+log.txt
 
 # Ignorar carpeta de mails
 maildir/

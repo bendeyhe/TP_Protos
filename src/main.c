@@ -51,6 +51,7 @@ int main(const int argc, char **argv) {
 
     const char *err_msg = NULL;
     selector_status ss = SELECTOR_SUCCESS;
+    selector_status ss2 = SELECTOR_SUCCESS;
     fd_selector selector = NULL;
 
     statsInit();
@@ -101,7 +102,7 @@ int main(const int argc, char **argv) {
         goto finally;
     }
 
-    if (bind(server_mng, (struct sockaddr *) &addr, sizeof(addr)) < 0) {
+    if (bind(server_mng, (struct sockaddr *) &addr_mng, sizeof(addr_mng)) < 0) {
         err_msg = "unable to bind socket mng";
         goto finally;
     }
@@ -138,7 +139,7 @@ int main(const int argc, char **argv) {
             .handle_close      = NULL, // nada que liberar
     };
     const struct fd_handler mng = {
-            .handle_read       = manager_passive_accept2,
+            .handle_read       = manager_passive_accept,
             .handle_write      = NULL,
             .handle_close      = NULL, // nada que liberar
     };
@@ -148,8 +149,8 @@ int main(const int argc, char **argv) {
         err_msg = "registering fd";
         goto finally;
     }
-    ss = selector_register(selector, server_mng, &mng, OP_READ, NULL);
-    if (ss != SELECTOR_SUCCESS) {
+    ss2 = selector_register(selector, server_mng, &mng, OP_READ, args.password);
+    if (ss2 != SELECTOR_SUCCESS) {
         err_msg = "registering fd";
         goto finally;
     }
@@ -157,6 +158,11 @@ int main(const int argc, char **argv) {
         err_msg = NULL;
         ss = selector_select(selector);
         if (ss != SELECTOR_SUCCESS) {
+            err_msg = "serving";
+            goto finally;
+        }
+        ss2 = selector_select(selector);
+        if (ss2 != SELECTOR_SUCCESS) {
             err_msg = "serving";
             goto finally;
         }
@@ -172,6 +178,16 @@ finally:
                 ss == SELECTOR_IO
                 ? strerror(errno)
                 : selector_error(ss));
+        ret = 2;
+    } else if (err_msg) {
+        perror(err_msg);
+        ret = 1;
+    }
+    if (ss2 != SELECTOR_SUCCESS) {
+        fprintf(stderr, "%s: %s\n", (err_msg == NULL) ? "" : err_msg,
+                ss2 == SELECTOR_IO
+                ? strerror(errno)
+                : selector_error(ss2));
         ret = 2;
     } else if (err_msg) {
         perror(err_msg);

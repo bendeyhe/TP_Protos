@@ -23,20 +23,6 @@ port(const char *s) {
 }
 
 static void
-user(char *s, struct users *user) {
-    char *p = strchr(s, ':');
-    if (p == NULL) {
-        fprintf(stderr, "password not found\n");
-        exit(1);
-    } else {
-        *p = 0;
-        p++;
-        user->name = s;
-        user->pass = p;
-    }
-}
-
-static void
 version(void) {
     fprintf(stderr, "smtp version 0.0\n"
                     "ITBA Protocolos de Comunicación 2024/1 -- Grupo 11\n"
@@ -54,7 +40,7 @@ usage(const char *progname) {
             "   -L <conf addr>   Dirección donde servirá el servicio de management.\n"
             "   -p <SMTP port>   Puerto entrante conexiones SMTP.\n"
             "   -P <conf port>   Puerto entrante conexiones configuracion\n"
-            "   -u <name>:<pass> Usuario y contraseña de usuario que puede usar el servidor. Hasta 10.\n"
+            "   -u <password>    Password para rol de administrador, 8 caracteres.\n"
             "   -v               Imprime información sobre la versión versión y termina.\n"
             "\n",
             progname);
@@ -73,8 +59,9 @@ parse_args(const int argc, char **argv, struct smtpargs *args) {
 
     args->disectors_enabled = true;
 
+    args->password = "password";
+
     int c;
-    int nusers = 0;
 
     while (true) {
         int option_index = 0;
@@ -106,13 +93,7 @@ parse_args(const int argc, char **argv, struct smtpargs *args) {
                 args->mng_port = port(optarg);
                 break;
             case 'u':
-                if (nusers >= MAX_USERS) {
-                    fprintf(stderr, "maximum number of command line users reached: %d.\n", MAX_USERS);
-                    exit(1);
-                } else {
-                    user(optarg, args->users + nusers);
-                    nusers++;
-                }
+                args->password = optarg;
                 break;
             case 'v':
                 version();
