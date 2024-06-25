@@ -59,58 +59,56 @@ void manager_passive_accept2(struct selector_key *key) {
     response_buffer[3] = buff[3];
     response_buffer[4] = buff[4];
     if (rcv < 0) {
-        response_buffer[5]=UNEXPECTED_ERROR;
+        response_buffer[5] = UNEXPECTED_ERROR;
         goto send_datagram;
     }
     memcpy(&signature, buff, 2);
     signature = ntohs(signature);
-    if (rcv != REQUEST_SIZE ||signature != SIGNATURE) {
+    if (rcv != REQUEST_SIZE || signature != SIGNATURE) {
         // devolver error
-        response_buffer[5]=INVALID_REQUEST;
+        response_buffer[5] = INVALID_REQUEST;
         goto send_datagram;
 
     }
     if (buff[2] != VERSION) {
-        response_buffer[5]=INVALID_VERSION;
+        response_buffer[5] = INVALID_VERSION;
         goto send_datagram;
     }
     char password[8];
     memcpy(password, &buff[5], 8);
 
-    if (strncmp((char *) password, (char *)key->data, 8) != 0) {
-        response_buffer[5]=UNAUTHORIZED;
+    if (strncmp((char *) password, (char *) key->data, 8) != 0) {
+        response_buffer[5] = UNAUTHORIZED;
         goto send_datagram;
     }
 
 
     unsigned char command = buff[13];
     size_t data;
-    TStats *stats;
+    TStats *stats = {0};
     getStats(stats);
     switch (command) {
-    case 0x00:
-        data = stats->historicConnectionQuantity;
-        break;
-    case 0x01:
-        data = stats->currentConnectionQuantity;
-        break;
-    case 0x02:
-        data = stats->bytesSent;
-        break;
-    case 0x03:
-        data = stats->bytesReceived;
-        break;
-    case 0x04:
-        data = stats->bytesSent + stats->bytesReceived;
-        break;
-    default:
-        response_buffer[5]=INVALID_COMMAND;
-        goto send_datagram;
+        case 0x00:
+            data = stats->historicConnectionQuantity;
+            break;
+        case 0x01:
+            data = stats->currentConnectionQuantity;
+            break;
+        case 0x02:
+            data = stats->bytesSent;
+            break;
+        case 0x03:
+            data = stats->bytesReceived;
+            break;
+        case 0x04:
+            data = stats->bytesSent + stats->bytesReceived;
+            break;
+        default:
+            response_buffer[5] = INVALID_COMMAND;
+            goto send_datagram;
     }
     data = htonl(data);
     memcpy(&response_buffer[6], &data, 8);
     send_datagram:
     sendto(key->fd, response_buffer, 14, 0, (struct sockaddr *) &client_addr, client_addr_len);
-
-
 }

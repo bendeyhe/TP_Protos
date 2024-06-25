@@ -457,7 +457,7 @@ static unsigned request_read(struct selector_key *key, unsigned current_state, u
     } else {
         size_t count;
         uint8_t *ptr = buffer_write_ptr(&state->read_buffer, &count);
-        ssize_t n = recv(key->fd, ptr, count, 0);
+        ssize_t n = recv(key->fd, ptr, count, MSG_DONTWAIT);
 
         bytesReceived(n);
 
@@ -491,7 +491,7 @@ static unsigned read_data(struct selector_key *key, unsigned current_state, unsi
     } else {
         size_t count;
         uint8_t *ptr = buffer_write_ptr(&state->read_buffer, &count);
-        ssize_t n = recv(key->fd, ptr, count, 0);
+        ssize_t n = recv(key->fd, ptr, count, MSG_DONTWAIT);
 
         bytesReceived(n);
 
