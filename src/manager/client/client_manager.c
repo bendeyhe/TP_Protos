@@ -9,6 +9,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <errno.h>
 
 /**
  * Request:
@@ -89,9 +90,8 @@ void init_buffer(char *buffer, uint8_t cmd,  char * password) {
     request_id = htons(request_id);
     uint16_t net_request_id = htons(request_id);
 
-
-    buffer[0] = (signature >> 8) & 0xFF;
-    buffer[1] = signature & 0xFF;
+    buffer[0] = (char)0xFE;
+    buffer[1] = (char)0xCA;
     buffer[2] = VERSION;
     buffer[3] = (net_request_id >> 8) & 0xFF;
     buffer[4] = net_request_id & 0xFF;
@@ -119,10 +119,13 @@ uint8_t get_command(const char *command) {
 bool check_response(uint8_t *response) {
     uint16_t signature = ntohs(*(uint16_t *) response);
     uint8_t version = response[2];
-    //uint16_t identifier = ntohs(*(uint16_t *) (response + 3));
     uint8_t status = response[5];
 
-    if (signature != SIGNATURE || version != VERSION) {
+    printf("Signature: %04X\n", signature);
+    printf("SIGNATURE: %04X\n", SIGNATURE);
+    printf("ntohs(signature): %04X\n", ntohs(signature));
+
+    if (ntohs(signature) != SIGNATURE || version != VERSION) {
         return false;
     }
     return status <= UNEXPECTED_ERROR;
@@ -207,12 +210,11 @@ int main(int argc, char *argv[]) {
 
     uint8_t buffer[REQUEST_SIZE];
     init_buffer((char *) buffer, cmd, password);
-    // si el comando es HELP no envio nada
+
     if (cmd == HELP) {
         print_response(buffer, cmd);
         return 0;
     }
-
 
     struct sockaddr_in6 addr;
     memset(&addr, 0, sizeof(addr));
@@ -230,9 +232,6 @@ int main(int argc, char *argv[]) {
     setsockopt(client, SOL_SOCKET, SO_REUSEADDR, &(int) {1}, sizeof(int));
     setsockopt(client, IPPROTO_IPV6, IPV6_V6ONLY, &(int) {0}, sizeof(int));
 
-    struct timeval tv = {1, 0};
-    setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, (const char *) &tv, sizeof(struct timeval));
-
     ssize_t num_bytes = sendto(client, buffer, REQUEST_SIZE, 0, (struct sockaddr *) &addr, sizeof(addr));
 
     if (num_bytes != REQUEST_SIZE) {
@@ -245,7 +244,21 @@ int main(int argc, char *argv[]) {
     socklen_t from_len = sizeof(from);
     uint8_t response[RESPONSE_SIZE];
 
+    // Timeout de 2 segundos
+    struct timeval tv;
+    tv.tv_sec = 5;
+    tv.tv_usec = 0;
+    if (setsockopt(client, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) < 0) {
+        fprintf(stderr, "setsockopt error: %s\n", strerror(errno));
+    }
+
     num_bytes = recvfrom(client, response, RESPONSE_SIZE, 0, (struct sockaddr *) &from, &from_len);
+
+    if (num_bytes < 0) {
+        perror("recvfrom");
+        close(client);
+        return 1;
+    }
 
     // verifico si la respuesta es correcta
     if (!check_response(response)) {

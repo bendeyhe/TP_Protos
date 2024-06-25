@@ -30,6 +30,6 @@ enum status {
 };
 
 
-void manager_passive_accept2(struct selector_key *key);
+void manager_passive_accept(struct selector_key *key);
 
 #endif //MANAGER_H

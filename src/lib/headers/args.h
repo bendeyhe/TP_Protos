@@ -3,13 +3,6 @@
 
 #include <stdbool.h>
 
-#define MAX_USERS 10
-
-struct users {
-    char *name;
-    char *pass;
-};
-
 /*
  * Vamos a popular esta struct desde la linea de comandos.
  * - Lista de hosts de dominios que aceptamos.
@@ -28,7 +21,7 @@ struct smtpargs {
 
     bool disectors_enabled;
 
-    struct users users[MAX_USERS];
+    char * password;
 };
 
 /**
