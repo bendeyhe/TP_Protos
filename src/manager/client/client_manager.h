@@ -3,8 +3,8 @@
 
 #define SIGNATURE 0xCAFE
 #define VERSION 0x00
-#define USER 0xC0DAC0DA
-#define PASS 0x5EC8E700
+#define USER 0xC0FFEE00
+#define PASS 0xCAFEBABE
 
 #define REQUEST_SIZE 14
 #define RESPONSE_SIZE 14
