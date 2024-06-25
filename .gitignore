@@ -24,4 +24,4 @@ client
 smtpd
 
 # Ignorar carpeta de mails
-mbox/
+maildir/

@@ -48,6 +48,8 @@ static enum request_state arg1(const uint8_t c, struct request_parser *p) {
             next = request_arg1;
     }
     if (next == request_arg1) {
+        if(p->i == 0 && c == ' ')
+            return request_arg1;
         if (p->i < sizeof(p->request->arg1) - 1)
             p->request->arg1[p->i++] = (char) c;
     } else {
